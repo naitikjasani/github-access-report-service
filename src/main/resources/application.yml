@@ -1,19 +1,26 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
 
 github:
   base-url: https://api.github.com
+  # Required. A fine-grained, read-only token scoped to the organization(s) you report on.
   token: ${GITHUB_TOKEN:}
+  connect-timeout: 5s
+  read-timeout: 15s
+  # Shared across all in-flight reports, so concurrent reports cannot add up past GitHub's secondary limits.
+  max-concurrency: 8
+  # Retries for transient failures (5xx, connection errors), with exponential backoff and jitter.
+  max-retries: 2
+  # Longest Retry-After we are willing to wait for inside a request before giving up with 503.
+  max-retry-after: 10s
 
-spring:
-  cache:
-    type: simple
-
-
+report:
+  sync-deadline: 45s
+  cache-ttl: 10m
+  cache-max-size: 100
+  # Comma-separated. Empty means any organization the token can see.
+  allowed-orgs: ${REPORT_ALLOWED_ORGS:}
 
 logging:
   level:
-    com.githubaccessreport: DEBUG
-    org.springframework.web.reactive: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    com.githubaccessreport: INFO

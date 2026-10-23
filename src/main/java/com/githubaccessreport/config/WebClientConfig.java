@@ -1,6 +1,5 @@
 package com.githubaccessreport.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
@@ -11,14 +10,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Configuration
 public class WebClientConfig {
 
-    @Value("${github.base-url}")
-    private String githubBaseUrl;
-
-    @Value("${github.token}")
-    private String githubToken;
-
     @Bean
-    public WebClient gitHubWebClient() {
+    public WebClient gitHubWebClient(GitHubProperties properties) {
         ExchangeStrategies strategies = ExchangeStrategies.builder()
                 .codecs(configurer -> configurer
                         .defaultCodecs()
@@ -26,8 +19,8 @@ public class WebClientConfig {
                 .build();
 
         return WebClient.builder()
-                .baseUrl(githubBaseUrl)
-                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + githubToken)
+                .baseUrl(properties.baseUrl().toString())
+                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.token())
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                 .defaultHeader("X-GitHub-Api-Version", "2022-11-28")
                 .exchangeStrategies(strategies)

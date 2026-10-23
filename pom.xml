@@ -35,6 +35,12 @@
             <artifactId>spring-boot-starter-webclient</artifactId>
         </dependency>
 
+        <!-- Bean Validation (configuration properties, request parameters) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
         <!-- Spring Boot Cache -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
