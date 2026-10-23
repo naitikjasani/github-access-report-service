@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.3</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
@@ -18,24 +18,21 @@
     <description>Spring Boot service that generates GitHub organization access reports</description>
 
     <properties>
-        <java.version>17</java.version>
-        <lombok.version>1.18.40</lombok.version>
-        <springdoc.version>2.8.5</springdoc.version>
-        <mockito.version>5.20.0</mockito.version>
-        <byte-buddy.version>1.17.5</byte-buddy.version>
+        <java.version>25</java.version>
+        <springdoc.version>3.1.1</springdoc.version>
     </properties>
 
     <dependencies>
-        <!-- Spring Boot Web -->
+        <!-- Spring MVC (servlet stack) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
-        <!-- Spring Boot WebFlux (for WebClient) -->
+        <!-- WebClient (HTTP client only) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webflux</artifactId>
+            <artifactId>spring-boot-starter-webclient</artifactId>
         </dependency>
 
         <!-- Spring Boot Cache -->
@@ -48,7 +45,6 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
             <optional>true</optional>
         </dependency>
 
@@ -63,6 +59,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -95,18 +97,6 @@
                             <version>${lombok.version}</version>
                         </path>
                     </annotationProcessorPaths>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <argLine>
-                        -Dnet.bytebuddy.experimental=true
-                        --add-opens java.base/java.lang=ALL-UNNAMED
-                        --add-opens java.base/java.lang.reflect=ALL-UNNAMED
-                        --add-opens java.base/java.util=ALL-UNNAMED
-                    </argLine>
                 </configuration>
             </plugin>
             <plugin>
