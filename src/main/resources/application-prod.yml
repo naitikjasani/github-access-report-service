@@ -1,0 +1,14 @@
+# Deployed profile (SPRING_PROFILES_ACTIVE=prod): JSON logs, no health details for anonymous callers.
+logging:
+  structured:
+    format:
+      console: ecs
+
+management:
+  endpoint:
+    health:
+      show-details: never
+  tracing:
+    sampling:
+      # Every request gets a trace id for log correlation; no exporter is configured, so nothing leaves the process.
+      probability: 1.0

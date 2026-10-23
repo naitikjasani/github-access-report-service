@@ -41,9 +41,11 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     static final String DOCS = "https://github.com/naitikjasani/github-access-report-service/blob/main/docs/errors.md#";
 
     private final Clock clock;
+    private final TraceIds traceIds;
 
-    public ProblemDetailsAdvice(Clock clock) {
+    public ProblemDetailsAdvice(Clock clock, TraceIds traceIds) {
         this.clock = clock;
+        this.traceIds = traceIds;
     }
 
     @ExceptionHandler(OrganizationNotFoundException.class)
@@ -172,19 +174,28 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
             problem.setType(URI.create(DOCS + code));
             problem.setProperty("code", code);
         }
+        if (body instanceof ProblemDetail problem) {
+            withTraceId(problem);
+        }
         return super.createResponseEntity(body, headers, statusCode, request);
     }
 
-    static ProblemDetail body(HttpStatus status, String code, String title, String detail) {
+    private ProblemDetail body(HttpStatus status, String code, String title, String detail) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setType(URI.create(DOCS + code));
         problem.setTitle(title);
         problem.setProperty("code", code);
-        return problem;
+        return withTraceId(problem);
     }
 
-    static ResponseEntity<ProblemDetail> problem(HttpStatus status, String code, String title, String detail) {
+    private ResponseEntity<ProblemDetail> problem(HttpStatus status, String code, String title, String detail) {
         return ResponseEntity.status(status).body(body(status, code, title, detail));
+    }
+
+    /** Lets a caller quote one id that matches the server's logs for this request. */
+    private ProblemDetail withTraceId(ProblemDetail problem) {
+        traceIds.current().ifPresent(id -> problem.setProperty("traceId", id));
+        return problem;
     }
 
     private static ResponseEntity<ProblemDetail> withRetryAfter(ProblemDetail body, Duration retryAfter) {
