@@ -28,6 +28,8 @@ report:
   cache-max-size: 100
   # Comma-separated. Empty means any organization the token can see.
   allowed-orgs: ${REPORT_ALLOWED_ORGS:}
+  # Optional. When set, /api/** requires the header X-API-Key with this value.
+  api-key: ${REPORT_API_KEY:}
 
 management:
   endpoints:

@@ -16,6 +16,7 @@ import org.springframework.validation.annotation.Validated;
  * @param cacheTtl      how long a generated report is served before it is rebuilt
  * @param cacheMaxSize  maximum number of organizations kept in the cache
  * @param allowedOrgs   if non-empty, only these organizations may be queried
+ * @param apiKey        if set, {@code /api/**} requires it in the {@code X-API-Key} header
  */
 @Validated
 @ConfigurationProperties("report")
@@ -23,7 +24,8 @@ public record ReportProperties(
         @NotNull Duration syncDeadline,
         @NotNull Duration cacheTtl,
         @Min(1) long cacheMaxSize,
-        Set<String> allowedOrgs) {
+        Set<String> allowedOrgs,
+        String apiKey) {
 
     public ReportProperties {
         allowedOrgs = allowedOrgs == null
@@ -37,5 +39,16 @@ public record ReportProperties(
 
     public boolean isAllowed(String normalizedOrg) {
         return allowedOrgs.isEmpty() || allowedOrgs.contains(normalizedOrg);
+    }
+
+    public boolean requiresApiKey() {
+        return apiKey != null && !apiKey.isBlank();
+    }
+
+    /** The API key must never reach a log line. */
+    @Override
+    public String toString() {
+        return "ReportProperties[syncDeadline=%s, cacheTtl=%s, cacheMaxSize=%d, allowedOrgs=%s, apiKey=%s]"
+                .formatted(syncDeadline, cacheTtl, cacheMaxSize, allowedOrgs, requiresApiKey() ? "****" : "none");
     }
 }
