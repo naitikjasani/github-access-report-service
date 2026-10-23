@@ -16,6 +16,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.retry.RetryException;
 import org.springframework.core.retry.RetryListener;
@@ -164,7 +165,11 @@ public class GitHubHttp {
             }
             throw new GitHubException.Unavailable("Could not reach GitHub: " + e.getMessage(), 0, e);
         } catch (RestClientException e) {
-            // 2xx with a body we cannot read (schema drift, truncated payload): not worth retrying.
+            // The body failed to arrive (connection dropped mid-stream) -> transient; it arrived but
+            // does not parse (schema drift) -> retrying would not help.
+            if (NestedExceptionUtils.getRootCause(e) instanceof IOException) {
+                throw new GitHubException.Unavailable("Connection to GitHub failed mid-response: " + e.getMessage(), 0, e);
+            }
             throw new GitHubException.UnexpectedResponse("Unreadable GitHub response for " + uriTemplate, 200, e);
         } finally {
             permits.release();

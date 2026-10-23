@@ -10,6 +10,7 @@ import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMoc
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.githubaccessreport.github.wire.RepositoryJson;
@@ -194,6 +195,20 @@ class GitHubHttpTest {
         assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS))
                 .isInstanceOf(GitHubException.UnexpectedResponse.class);
         github.verify(1, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
+    }
+
+    @Test
+    void connectionDroppedMidResponseIsRetried() {
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("drop")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(aResponse().withFault(Fault.RANDOM_DATA_THEN_CLOSE))
+                .willSetStateTo("stable"));
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("drop")
+                .whenScenarioStateIs("stable")
+                .willReturn(okJson(repos(1, 1))));
+
+        assertThat(http.getAllPages(REPOS_PATH, REPOS)).hasSize(1);
+        github.verify(2, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
     }
 
     static String repos(int firstId, int count) {

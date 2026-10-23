@@ -21,7 +21,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.githubaccessreport.config.ReportProperties;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
@@ -81,12 +85,32 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.items[0].archived").value(true));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"-leading", "trailing-", "double--hyphen", "under_score", "dot.name",
+            "a234567890123456789012345678901234567890"})
+    void invalidOrganizationNamesAreRejected(String organization) throws Exception {
+        mvc.perform(get("/api/v1/orgs/{org}/access/users", organization))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid-request"));
+
+        org.mockito.Mockito.verifyNoInteractions(reports);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"a", "my-org", "Org123", "a23456789012345678901234567890123456789"})
+    void validOrganizationNamesAreAccepted(String organization) throws Exception {
+        when(reports.getReport(anyString())).thenReturn(ReportFixtures.report());
+
+        mvc.perform(get("/api/v1/orgs/{org}/access/users", organization)).andExpect(status().isOk());
+    }
+
     @Test
     void invalidPageSizeIsAProblem400() throws Exception {
         mvc.perform(get("/api/v1/orgs/acme/access/users").param("size", "1000"))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.code").value("invalid-request"));
+                .andExpect(jsonPath("$.code").value("invalid-request"))
+                .andExpect(jsonPath("$.detail").value("size must be less than or equal to 200"));
     }
 
     @Test
@@ -194,7 +218,9 @@ class ReportControllerTest {
                 .andExpect(jsonPath("$.detail").value("An unexpected error occurred."));
     }
 
+    /** Controller collaborators that slice tests don't load: a fixed clock and the report settings. */
     @TestConfiguration
+    @EnableConfigurationProperties(ReportProperties.class)
     static class FixedClock {
         @Bean
         Clock clock() {
