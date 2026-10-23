@@ -1,0 +1,4 @@
+[
+  {"login": "alice", "id": 101, "type": "User", "permissions": {"admin": true, "maintain": true, "push": true, "triage": true, "pull": true}, "role_name": "admin"},
+  {"login": "bob", "id": 201, "type": "User", "permissions": {"admin": false, "maintain": false, "push": false, "triage": true, "pull": true}, "role_name": "security-reviewer"}
+]

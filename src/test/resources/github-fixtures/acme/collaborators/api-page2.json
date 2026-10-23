@@ -1,0 +1,4 @@
+[
+  {"login": "carol", "id": 202, "type": "User", "permissions": {"admin": false, "maintain": false, "push": false, "triage": false, "pull": true}, "role_name": "read"},
+  {"login": "olga", "id": 301, "type": "User", "permissions": {"admin": false, "maintain": false, "push": true, "triage": true, "pull": true}, "role_name": "write"}
+]

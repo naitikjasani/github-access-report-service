@@ -1,19 +1,54 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: github-access-report
+  threads:
+    # Tomcat request handling and our GitHub fan-out both run on virtual threads.
+    virtual:
+      enabled: true
 
 github:
   base-url: https://api.github.com
+  # Required. A fine-grained, read-only token scoped to the organization(s) you report on.
   token: ${GITHUB_TOKEN:}
+  connect-timeout: 5s
+  read-timeout: 15s
+  # Shared across all in-flight reports, so concurrent reports cannot add up past GitHub's secondary limits.
+  max-concurrency: 8
+  # Retries for transient failures (5xx, connection errors), with exponential backoff and jitter.
+  max-retries: 2
+  # Longest Retry-After we are willing to wait for inside a request before giving up with 503.
+  max-retry-after: 10s
 
-spring:
-  cache:
-    type: simple
+report:
+  sync-deadline: 45s
+  # Asynchronous jobs (POST /api/v1/reports) for organizations too large for one request.
+  async-deadline: 10m
+  cache-ttl: 10m
+  cache-max-size: 100
+  # Comma-separated. Empty means any organization the token can see.
+  allowed-orgs: ${REPORT_ALLOWED_ORGS:}
+  # Optional. When set, /api/** requires the header X-API-Key with this value.
+  api-key: ${REPORT_API_KEY:}
 
-
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      # liveness/readiness groups for the platform; the "github" indicator stays out of readiness.
+      probes:
+        enabled: true
+      show-components: always
+      show-details: always
+  info:
+    build:
+      enabled: true
 
 logging:
   level:
-    com.githubaccessreport: DEBUG
-    org.springframework.web.reactive: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    com.githubaccessreport: INFO

@@ -1,0 +1,7 @@
+[
+  {"id": 1, "name": "api", "full_name": "acme/api", "private": true, "visibility": "private", "archived": false, "fork": false, "pushed_at": "2026-09-30T10:00:00Z", "owner": {"login": "acme", "id": 9000}},
+  {"id": 2, "name": "web", "full_name": "acme/web", "private": false, "visibility": "public", "archived": false, "fork": false, "pushed_at": "2026-10-01T10:00:00Z", "owner": {"login": "acme", "id": 9000}},
+  {"id": 3, "name": "legacy", "full_name": "acme/legacy", "private": true, "visibility": "private", "archived": true, "fork": false, "pushed_at": "2023-02-01T10:00:00Z", "owner": {"login": "acme", "id": 9000}},
+  {"id": 4, "name": "fork-of-lib", "full_name": "acme/fork-of-lib", "private": false, "visibility": "public", "archived": false, "fork": true, "pushed_at": "2025-01-01T10:00:00Z", "owner": {"login": "acme", "id": 9000}},
+  {"id": 5, "name": "secret", "full_name": "acme/secret", "private": true, "visibility": "private", "archived": false, "fork": false, "pushed_at": "2026-08-01T10:00:00Z", "owner": {"login": "acme", "id": 9000}}
+]
