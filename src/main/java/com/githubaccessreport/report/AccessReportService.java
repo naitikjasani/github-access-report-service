@@ -6,6 +6,9 @@ import com.githubaccessreport.report.domain.AccessGrant;
 import com.githubaccessreport.report.domain.AccessReport;
 import com.githubaccessreport.report.domain.OrgAccessSnapshot;
 import com.githubaccessreport.report.domain.Repository;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,11 +38,18 @@ public class AccessReportService {
     private final OrgAccessSource source;
     private final ReportProperties properties;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
+    private final DistributionSummary repositoriesPerReport;
 
-    public AccessReportService(OrgAccessSource source, ReportProperties properties, Clock clock) {
+    public AccessReportService(
+            OrgAccessSource source, ReportProperties properties, Clock clock, MeterRegistry meterRegistry) {
         this.source = source;
         this.properties = properties;
         this.clock = clock;
+        this.meterRegistry = meterRegistry;
+        this.repositoriesPerReport = DistributionSummary.builder("access.report.repositories")
+                .description("Repositories listed per generated report")
+                .register(meterRegistry);
     }
 
     /**
@@ -52,7 +62,17 @@ public class AccessReportService {
     @Cacheable(cacheNames = CacheConfig.ACCESS_REPORTS, key = "#organization", sync = true)
     public AccessReport getReport(String organization) {
         Instant started = clock.instant();
-        OrgAccessSnapshot snapshot = source.fetch(organization, started.plus(properties.syncDeadline()));
+        Timer.Sample sample = Timer.start(meterRegistry);
+        OrgAccessSnapshot snapshot;
+        try {
+            snapshot = source.fetch(organization, started.plus(properties.syncDeadline()));
+        } catch (RuntimeException e) {
+            sample.stop(generationTimer("error", "n/a"));
+            throw e;
+        }
+        sample.stop(
+                generationTimer("success", Boolean.toString(snapshot.coverage().complete())));
+        repositoriesPerReport.record(snapshot.coverage().repositoriesListed());
 
         List<AccessGrant> grants =
                 deduplicate(snapshot.grants()).stream().sorted(GRANT_ORDER).toList();
@@ -69,6 +89,14 @@ public class AccessReportService {
                 snapshot.coverage().complete(),
                 Duration.between(started, generatedAt).toMillis());
         return new AccessReport(organization, generatedAt, repositories, grants, snapshot.coverage());
+    }
+
+    private Timer generationTimer(String outcome, String complete) {
+        return Timer.builder("access.report.generation")
+                .description("Time to build a report from GitHub (cache misses only)")
+                .tag("outcome", outcome)
+                .tag("complete", complete)
+                .register(meterRegistry);
     }
 
     /**

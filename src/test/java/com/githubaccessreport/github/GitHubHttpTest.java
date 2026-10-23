@@ -14,6 +14,7 @@ import com.github.tomakehurst.wiremock.http.Fault;
 import com.github.tomakehurst.wiremock.junit5.WireMockExtension;
 import com.github.tomakehurst.wiremock.stubbing.Scenario;
 import com.githubaccessreport.github.wire.RepositoryJson;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -35,13 +36,15 @@ class GitHubHttpTest {
     private static final String REPOS_PATH = "/orgs/acme/repos";
 
     private RateLimitTracker tracker;
+    private SimpleMeterRegistry metrics;
     private GitHubHttp http;
 
     @BeforeEach
     void setUp() {
         tracker = new RateLimitTracker();
+        metrics = new SimpleMeterRegistry();
         http = GitHubTestSupport.http(
-                GitHubTestSupport.properties(github.baseUrl(), 4, Duration.ofMillis(500)), tracker);
+                GitHubTestSupport.properties(github.baseUrl(), 4, Duration.ofMillis(500)), tracker, metrics);
     }
 
     @Test
@@ -96,6 +99,7 @@ class GitHubHttpTest {
 
         assertThat(http.getAllPages(REPOS_PATH, REPOS)).hasSize(3);
         github.verify(2, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
+        assertThat(metrics.counter("github.retries").count()).isEqualTo(1);
     }
 
     @Test
@@ -135,6 +139,8 @@ class GitHubHttpTest {
         github.verify(1, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
         assertThat(tracker.latest("core"))
                 .hasValueSatisfying(s -> assertThat(s.remaining()).isZero());
+        assertThat(metrics.counter("github.ratelimit.hits", "type", "primary").count())
+                .isEqualTo(1);
     }
 
     @Test
@@ -157,6 +163,7 @@ class GitHubHttpTest {
 
         assertThat(Duration.ofNanos(System.nanoTime() - start)).isGreaterThanOrEqualTo(Duration.ofSeconds(1));
         github.verify(2, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
+        assertThat(metrics.counter("github.ratelimit.secondary.waits").count()).isEqualTo(1);
     }
 
     @Test

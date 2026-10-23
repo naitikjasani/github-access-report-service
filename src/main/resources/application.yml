@@ -29,6 +29,22 @@ report:
   # Comma-separated. Empty means any organization the token can see.
   allowed-orgs: ${REPORT_ALLOWED_ORGS:}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    health:
+      # liveness/readiness groups for the platform; the "github" indicator stays out of readiness.
+      probes:
+        enabled: true
+      show-components: always
+      show-details: always
+  info:
+    build:
+      enabled: true
+
 logging:
   level:
     com.githubaccessreport: INFO

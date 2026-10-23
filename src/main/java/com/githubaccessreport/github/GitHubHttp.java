@@ -1,6 +1,8 @@
 package com.githubaccessreport.github;
 
 import com.githubaccessreport.config.GitHubProperties;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -15,13 +17,13 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.NestedExceptionUtils;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.retry.RetryException;
 import org.springframework.core.retry.RetryListener;
 import org.springframework.core.retry.RetryPolicy;
 import org.springframework.core.retry.RetryTemplate;
+import org.springframework.core.retry.Retryable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
@@ -60,26 +62,28 @@ public class GitHubHttp {
     private final RetryTemplate retryTemplate;
     private final Duration maxRetryAfter;
 
-    @Autowired
+    private final Counter retries;
+    private final Counter secondaryLimitWaits;
+    private final MeterRegistry meterRegistry;
+
     public GitHubHttp(
             RestClient gitHubApiRestClient,
             GitHubProperties properties,
             RateLimitTracker rateLimitTracker,
-            Clock clock) {
-        this(gitHubApiRestClient, properties, rateLimitTracker, clock, new RetryListener() {});
-    }
-
-    GitHubHttp(
-            RestClient gitHubApiRestClient,
-            GitHubProperties properties,
-            RateLimitTracker rateLimitTracker,
             Clock clock,
-            RetryListener retryListener) {
+            MeterRegistry meterRegistry) {
         this.restClient = gitHubApiRestClient;
         this.rateLimitTracker = rateLimitTracker;
         this.clock = clock;
+        this.meterRegistry = meterRegistry;
         this.permits = new Semaphore(properties.maxConcurrency(), true);
         this.maxRetryAfter = properties.maxRetryAfter();
+        this.retries = Counter.builder("github.retries")
+                .description("GitHub calls retried after a transient failure (5xx, timeout, I/O)")
+                .register(meterRegistry);
+        this.secondaryLimitWaits = Counter.builder("github.ratelimit.secondary.waits")
+                .description("Times we waited out a short GitHub secondary rate limit")
+                .register(meterRegistry);
         this.retryTemplate = new RetryTemplate(RetryPolicy.builder()
                 .maxRetries(properties.maxRetries())
                 .delay(Duration.ofMillis(200))
@@ -89,7 +93,12 @@ public class GitHubHttp {
                 .predicate(ex -> ex instanceof GitHubException.Unavailable
                         && !Thread.currentThread().isInterrupted())
                 .build());
-        this.retryTemplate.setRetryListener(retryListener);
+        this.retryTemplate.setRetryListener(new RetryListener() {
+            @Override
+            public void beforeRetry(RetryPolicy retryPolicy, Retryable<?> retryable) {
+                retries.increment();
+            }
+        });
     }
 
     /** GET a single JSON document. */
@@ -135,6 +144,7 @@ public class GitHubHttp {
                         && secondaryLimitWaits < MAX_SECONDARY_LIMIT_WAITS
                         && limit.retryAfter().compareTo(maxRetryAfter) <= 0) {
                     secondaryLimitWaits++;
+                    this.secondaryLimitWaits.increment();
                     log.warn(
                             "GitHub secondary rate limit on {}; waiting {}s (attempt {})",
                             uriTemplate,
@@ -167,7 +177,9 @@ public class GitHubHttp {
                 }
                 String body = readErrorBody(response.getBody());
                 log.debug("GitHub returned HTTP {} for {}", status, uriTemplate);
-                throw GitHubErrorClassifier.classify(status, headers, body, clock.instant());
+                GitHubException failure = GitHubErrorClassifier.classify(status, headers, body, clock.instant());
+                countRateLimit(failure);
+                throw failure;
             });
         } catch (ResourceAccessException e) {
             if (Thread.currentThread().isInterrupted()) {
@@ -184,6 +196,17 @@ public class GitHubHttp {
             throw new GitHubException.UnexpectedResponse("Unreadable GitHub response for " + uriTemplate, 200, e);
         } finally {
             permits.release();
+        }
+    }
+
+    private void countRateLimit(GitHubException failure) {
+        String type = switch (failure) {
+            case GitHubException.PrimaryRateLimitExceeded ignored -> "primary";
+            case GitHubException.SecondaryRateLimitExceeded ignored -> "secondary";
+            default -> null;
+        };
+        if (type != null) {
+            meterRegistry.counter("github.ratelimit.hits", "type", type).increment();
         }
     }
 

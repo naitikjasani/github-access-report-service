@@ -14,6 +14,7 @@ import com.githubaccessreport.report.domain.Affiliation;
 import com.githubaccessreport.report.domain.Coverage;
 import com.githubaccessreport.report.domain.OrgAccessSnapshot;
 import com.githubaccessreport.report.domain.Permission;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,6 +29,7 @@ class AccessReportServiceTest {
     private static final Instant NOW = Instant.parse("2026-01-01T12:00:00Z");
 
     private final AtomicReference<Instant> deadlineSeen = new AtomicReference<>();
+    private final SimpleMeterRegistry metrics = new SimpleMeterRegistry();
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
     private final ReportProperties properties =
             new ReportProperties(Duration.ofSeconds(30), Duration.ofMinutes(10), 100, Set.of());
@@ -43,7 +45,8 @@ class AccessReportServiceTest {
                                 grant(ALICE, API, Permission.ADMIN, Affiliation.OWNER)),
                         Coverage.of(2, List.of(), true))),
                 properties,
-                clock);
+                clock,
+                metrics);
 
         AccessReport report = service.getReport("acme");
 
@@ -53,6 +56,9 @@ class AccessReportServiceTest {
                 .containsExactly("alice/api", "alice/web", "bob/web");
         assertThat(report.generatedAt()).isEqualTo(NOW);
         assertThat(deadlineSeen.get()).isEqualTo(NOW.plusSeconds(30));
+        assertThat(metrics.timer("access.report.generation", "outcome", "success", "complete", "true")
+                        .count())
+                .isEqualTo(1);
     }
 
     @Test
@@ -65,7 +71,8 @@ class AccessReportServiceTest {
                                 grant(BOB, API, Permission.WRITE, Affiliation.MEMBER)),
                         Coverage.of(1, List.of(), true))),
                 properties,
-                clock);
+                clock,
+                metrics);
 
         List<AccessGrant> grants = service.getReport("acme").grants();
 
@@ -77,7 +84,8 @@ class AccessReportServiceTest {
         var service = new AccessReportService(
                 source(new OrgAccessSnapshot(List.of(), List.of(), Coverage.of(0, List.of(), true))),
                 properties,
-                clock);
+                clock,
+                metrics);
 
         AccessReport report = service.getReport("empty");
 

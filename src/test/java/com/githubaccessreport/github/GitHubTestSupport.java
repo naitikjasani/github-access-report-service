@@ -2,6 +2,8 @@ package com.githubaccessreport.github;
 
 import com.githubaccessreport.config.GitHubClientConfig;
 import com.githubaccessreport.config.GitHubProperties;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
@@ -26,7 +28,11 @@ final class GitHubTestSupport {
     }
 
     static GitHubHttp http(GitHubProperties properties, RateLimitTracker tracker) {
+        return http(properties, tracker, new SimpleMeterRegistry());
+    }
+
+    static GitHubHttp http(GitHubProperties properties, RateLimitTracker tracker, MeterRegistry registry) {
         RestClient restClient = new GitHubClientConfig().gitHubApiRestClient(RestClient.builder(), properties);
-        return new GitHubHttp(restClient, properties, tracker, Clock.systemUTC());
+        return new GitHubHttp(restClient, properties, tracker, Clock.systemUTC(), registry);
     }
 }
