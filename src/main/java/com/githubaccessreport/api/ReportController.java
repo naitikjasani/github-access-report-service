@@ -26,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
-import java.util.Locale;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -87,11 +86,8 @@ public class ReportController {
 
     static final int MAX_PAGE_SIZE = 200;
 
-    /** GitHub's rule: 1-39 alphanumerics or single hyphens, not starting or ending with a hyphen. */
-    static final String ORGANIZATION_LOGIN = "^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$";
-
-    static final String ORGANIZATION_LOGIN_MESSAGE =
-            "must be a GitHub organization login: 1-39 letters, digits or single hyphens, not starting or ending with '-'";
+    static final String ORGANIZATION_LOGIN = Organizations.LOGIN;
+    static final String ORGANIZATION_LOGIN_MESSAGE = Organizations.LOGIN_MESSAGE;
 
     private final AccessReportService reports;
     private final ReportProperties properties;
@@ -197,16 +193,8 @@ public class ReportController {
                 report, AccessFindings.evaluate(report, clock.instant(), Duration.ofDays(dormantDays)), page, size);
     }
 
-    /**
-     * GitHub logins are case-insensitive, so normalize to one cache entry per organization, then
-     * apply the allowlist (the control that makes a public demo safe to expose).
-     */
     private String resolve(String organization) {
-        String normalized = organization.toLowerCase(Locale.ROOT);
-        if (!properties.isAllowed(normalized)) {
-            throw new OrganizationNotAllowedException(normalized);
-        }
-        return normalized;
+        return Organizations.resolve(organization, properties);
     }
 
     private <T> ReportPage<T> toPage(AccessReport report, List<T> items, int page, int size) {

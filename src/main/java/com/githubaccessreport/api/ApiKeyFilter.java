@@ -50,7 +50,7 @@ public class ApiKeyFilter extends OncePerRequestFilter {
         }
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.UNAUTHORIZED, "Send the API key in the " + HEADER + " header.");
-        problem.setType(URI.create(ProblemDetailsAdvice.DOCS + "unauthorized"));
+        problem.setType(URI.create(Problems.DOCS + "unauthorized"));
         problem.setTitle("Missing or invalid API key");
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "unauthorized");

@@ -31,8 +31,8 @@ class AccessReportServiceTest {
     private final AtomicReference<Instant> deadlineSeen = new AtomicReference<>();
     private final SimpleMeterRegistry metrics = new SimpleMeterRegistry();
     private final Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-    private final ReportProperties properties =
-            new ReportProperties(Duration.ofSeconds(30), Duration.ofMinutes(10), 100, Set.of(), null);
+    private final ReportProperties properties = new ReportProperties(
+            Duration.ofSeconds(30), Duration.ofMinutes(10), Duration.ofMinutes(10), 100, Set.of(), null);
 
     @Test
     void sortsGrantsAndRepositoriesAndPassesDeadline() {

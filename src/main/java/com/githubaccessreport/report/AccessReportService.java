@@ -61,11 +61,19 @@ public class AccessReportService {
      */
     @Cacheable(cacheNames = CacheConfig.ACCESS_REPORTS, key = "#organization", sync = true)
     public AccessReport getReport(String organization) {
+        return build(organization, properties.syncDeadline());
+    }
+
+    /**
+     * Builds a fresh report from GitHub, bypassing the cache. Used directly by asynchronous jobs,
+     * which allow a longer deadline and then publish the result into the cache.
+     */
+    public AccessReport build(String organization, Duration deadline) {
         Instant started = clock.instant();
         Timer.Sample sample = Timer.start(meterRegistry);
         OrgAccessSnapshot snapshot;
         try {
-            snapshot = source.fetch(organization, started.plus(properties.syncDeadline()));
+            snapshot = source.fetch(organization, started.plus(deadline));
         } catch (RuntimeException e) {
             sample.stop(generationTimer("error", "n/a"));
             throw e;

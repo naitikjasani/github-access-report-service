@@ -264,7 +264,7 @@ class ReportControllerTest {
     /** Controller collaborators that slice tests don't load: a fixed clock and the report settings. */
     @TestConfiguration
     @EnableConfigurationProperties(ReportProperties.class)
-    @Import(TraceIds.class)
+    @Import({TraceIds.class, Problems.class})
     static class FixedClock {
         @Bean
         Clock clock() {
