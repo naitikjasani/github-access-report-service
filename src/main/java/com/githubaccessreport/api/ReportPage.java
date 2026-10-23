@@ -13,8 +13,14 @@ import java.util.List;
  * @param coverage    what the report could not see; check {@code coverage.complete} before trusting totals
  * @param summary     totals for the whole report, ignoring filters and paging
  */
-public record ReportPage<T>(String organization, Instant generatedAt, long ageSeconds, Coverage coverage,
-        ReportSummary summary, PageInfo page, List<T> items) {
+public record ReportPage<T>(
+        String organization,
+        Instant generatedAt,
+        long ageSeconds,
+        Coverage coverage,
+        ReportSummary summary,
+        PageInfo page,
+        List<T> items) {
 
     public record PageInfo(int number, int size, long totalElements, int totalPages) {}
 }

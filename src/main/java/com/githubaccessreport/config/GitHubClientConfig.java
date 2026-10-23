@@ -27,8 +27,7 @@ public class GitHubClientConfig {
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(properties.readTimeout());
 
-        return builder
-                .baseUrl(properties.baseUrl().toString())
+        return builder.baseUrl(properties.baseUrl().toString())
                 .requestFactory(requestFactory)
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.token())
                 .defaultHeader(HttpHeaders.ACCEPT, "application/vnd.github+json")

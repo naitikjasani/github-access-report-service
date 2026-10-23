@@ -25,7 +25,8 @@ public class RateLimitTracker {
         if (limit == null || remaining == null || reset == null) {
             return;
         }
-        String resource = Optional.ofNullable(headers.getFirst("x-ratelimit-resource")).orElse("core");
+        String resource =
+                Optional.ofNullable(headers.getFirst("x-ratelimit-resource")).orElse("core");
         Snapshot observed = new Snapshot(resource, limit, remaining, Instant.ofEpochSecond(reset));
 
         // Parallel responses arrive out of order: within one reset window the smallest

@@ -26,12 +26,24 @@ public enum Permission {
     public static Permission fromGitHub(String roleName, Map<String, Boolean> permissions) {
         if (roleName != null) {
             switch (roleName.toLowerCase(Locale.ROOT)) {
-                case "admin" -> { return ADMIN; }
-                case "maintain" -> { return MAINTAIN; }
-                case "write", "push" -> { return WRITE; }
-                case "triage" -> { return TRIAGE; }
-                case "read", "pull" -> { return READ; }
-                default -> { /* custom role: derive from flags */ }
+                case "admin" -> {
+                    return ADMIN;
+                }
+                case "maintain" -> {
+                    return MAINTAIN;
+                }
+                case "write", "push" -> {
+                    return WRITE;
+                }
+                case "triage" -> {
+                    return TRIAGE;
+                }
+                case "read", "pull" -> {
+                    return READ;
+                }
+                default -> {
+                    /* custom role: derive from flags */
+                }
             }
         }
         if (permissions == null || permissions.isEmpty()) {

@@ -10,7 +10,4 @@ import java.util.Map;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CollaboratorJson(
-        long id,
-        String login,
-        @JsonProperty("role_name") String roleName,
-        Map<String, Boolean> permissions) {}
+        long id, String login, @JsonProperty("role_name") String roleName, Map<String, Boolean> permissions) {}

@@ -28,7 +28,10 @@ public final class ReportFixtures {
     private ReportFixtures() {}
 
     public static AccessReport report() {
-        return new AccessReport("acme", GENERATED_AT, List.of(API, FORK, LEGACY, WEB),
+        return new AccessReport(
+                "acme",
+                GENERATED_AT,
+                List.of(API, FORK, LEGACY, WEB),
                 List.of(
                         grant(ALICE, API, Permission.ADMIN, Affiliation.OWNER),
                         grant(ALICE, FORK, Permission.ADMIN, Affiliation.OWNER),

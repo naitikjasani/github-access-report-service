@@ -11,8 +11,8 @@ import com.githubaccessreport.report.domain.Repository;
  * @param minPermission only grants at or above this level (null: all, including UNKNOWN)
  * @param affiliation   only users with this affiliation (null: all)
  */
-public record AccessFilter(Permission minPermission, Affiliation affiliation, boolean includeArchived,
-        boolean includeForks) {
+public record AccessFilter(
+        Permission minPermission, Affiliation affiliation, boolean includeArchived, boolean includeForks) {
 
     public static final AccessFilter NONE = new AccessFilter(null, null, true, true);
 

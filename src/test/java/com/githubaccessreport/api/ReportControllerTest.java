@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.githubaccessreport.config.ReportProperties;
 import com.githubaccessreport.github.GitHubException;
 import com.githubaccessreport.report.AccessReportService;
 import com.githubaccessreport.report.OrganizationNotFoundException;
@@ -24,7 +25,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import com.githubaccessreport.config.ReportProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -77,7 +77,9 @@ class ReportControllerTest {
         when(reports.getReport("acme")).thenReturn(ReportFixtures.report());
 
         mvc.perform(get("/api/v1/orgs/acme/access/repositories")
-                        .param("minPermission", "WRITE").param("size", "1").param("page", "2"))
+                        .param("minPermission", "WRITE")
+                        .param("size", "1")
+                        .param("page", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page.totalElements").value(3)) // api, fork-of-lib, legacy; web has no WRITE+
                 .andExpect(jsonPath("$.page.totalPages").value(3))
@@ -86,8 +88,15 @@ class ReportControllerTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"-leading", "trailing-", "double--hyphen", "under_score", "dot.name",
-            "a234567890123456789012345678901234567890"})
+    @ValueSource(
+            strings = {
+                "-leading",
+                "trailing-",
+                "double--hyphen",
+                "under_score",
+                "dot.name",
+                "a234567890123456789012345678901234567890"
+            })
     void invalidOrganizationNamesAreRejected(String organization) throws Exception {
         mvc.perform(get("/api/v1/orgs/{org}/access/users", organization))
                 .andExpect(status().isBadRequest())

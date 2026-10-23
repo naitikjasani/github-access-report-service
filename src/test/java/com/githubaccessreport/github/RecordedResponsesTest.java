@@ -21,7 +21,9 @@ import org.springframework.core.ParameterizedTypeReference;
 class RecordedResponsesTest {
 
     @RegisterExtension
-    static WireMockExtension github = WireMockExtension.newInstance().options(wireMockConfig().dynamicPort()).build();
+    static WireMockExtension github = WireMockExtension.newInstance()
+            .options(wireMockConfig().dynamicPort())
+            .build();
 
     @Test
     void parsesRealRepositoryPayload() throws IOException {

@@ -15,7 +15,8 @@ class RateLimitTrackerTest {
         tracker.record(headers("4980", "1000"));
         tracker.record(headers("4985", "1000")); // older response arriving late
 
-        assertThat(tracker.latest("core")).hasValueSatisfying(s -> assertThat(s.remaining()).isEqualTo(4980));
+        assertThat(tracker.latest("core"))
+                .hasValueSatisfying(s -> assertThat(s.remaining()).isEqualTo(4980));
     }
 
     @Test
@@ -23,7 +24,8 @@ class RateLimitTrackerTest {
         tracker.record(headers("3", "1000"));
         tracker.record(headers("4999", "4600"));
 
-        assertThat(tracker.latest("core")).hasValueSatisfying(s -> assertThat(s.remaining()).isEqualTo(4999));
+        assertThat(tracker.latest("core"))
+                .hasValueSatisfying(s -> assertThat(s.remaining()).isEqualTo(4999));
     }
 
     @Test

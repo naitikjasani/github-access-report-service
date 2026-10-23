@@ -14,7 +14,11 @@ public record Coverage(
         boolean affiliationsKnown) {
 
     public static Coverage of(int listed, List<SkippedRepository> skipped, boolean affiliationsKnown) {
-        return new Coverage(skipped.isEmpty() && affiliationsKnown, listed, listed - skipped.size(),
-                List.copyOf(skipped), affiliationsKnown);
+        return new Coverage(
+                skipped.isEmpty() && affiliationsKnown,
+                listed,
+                listed - skipped.size(),
+                List.copyOf(skipped),
+                affiliationsKnown);
     }
 }

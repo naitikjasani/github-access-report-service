@@ -20,7 +20,8 @@ class ReportViewsTest {
         List<UserAccess> users = ReportViews.byUser(report(), AccessFilter.NONE);
 
         assertThat(users).extracting(UserAccess::login).containsExactly("alice", "bob", "olga");
-        assertThat(users.get(1).repositories()).extracting(UserAccess.RepositoryGrant::name)
+        assertThat(users.get(1).repositories())
+                .extracting(UserAccess.RepositoryGrant::name)
                 .containsExactly("api", "legacy", "web");
         assertThat(users.get(2).affiliation()).isEqualTo(Affiliation.OUTSIDE_COLLABORATOR);
     }
@@ -30,13 +31,15 @@ class ReportViewsTest {
         List<UserAccess> admins = ReportViews.byUser(report(), new AccessFilter(Permission.ADMIN, null, true, true));
 
         assertThat(admins).extracting(UserAccess::login).containsExactly("alice", "bob");
-        assertThat(admins.get(1).repositories()).extracting(UserAccess.RepositoryGrant::name).containsExactly("legacy");
+        assertThat(admins.get(1).repositories())
+                .extracting(UserAccess.RepositoryGrant::name)
+                .containsExactly("legacy");
     }
 
     @Test
     void affiliationFilter() {
-        List<UserAccess> outside = ReportViews.byUser(report(),
-                new AccessFilter(null, Affiliation.OUTSIDE_COLLABORATOR, true, true));
+        List<UserAccess> outside =
+                ReportViews.byUser(report(), new AccessFilter(null, Affiliation.OUTSIDE_COLLABORATOR, true, true));
 
         assertThat(outside).extracting(UserAccess::login).containsExactly("olga");
     }
@@ -45,22 +48,27 @@ class ReportViewsTest {
     void archivedAndForkedRepositoriesCanBeExcluded() {
         List<UserAccess> users = ReportViews.byUser(report(), new AccessFilter(null, null, false, false));
 
-        assertThat(users.getFirst().repositories()).extracting(UserAccess.RepositoryGrant::name).containsExactly("api");
+        assertThat(users.getFirst().repositories())
+                .extracting(UserAccess.RepositoryGrant::name)
+                .containsExactly("api");
     }
 
     @Test
     void byRepositoryListsEveryRepositoryWithCollaborators() {
         List<RepositoryAccess> repositories = ReportViews.byRepository(report(), AccessFilter.NONE);
 
-        assertThat(repositories).extracting(RepositoryAccess::name).containsExactly("api", "fork-of-lib", "legacy", "web");
-        assertThat(repositories.getFirst().collaborators()).extracting(RepositoryAccess.Collaborator::login)
+        assertThat(repositories)
+                .extracting(RepositoryAccess::name)
+                .containsExactly("api", "fork-of-lib", "legacy", "web");
+        assertThat(repositories.getFirst().collaborators())
+                .extracting(RepositoryAccess.Collaborator::login)
                 .containsExactly("alice", "bob", "olga");
     }
 
     @Test
     void byRepositoryWithGrantFilterDropsRepositoriesWithoutMatches() {
-        List<RepositoryAccess> repositories = ReportViews.byRepository(report(),
-                new AccessFilter(null, Affiliation.OUTSIDE_COLLABORATOR, true, true));
+        List<RepositoryAccess> repositories = ReportViews.byRepository(
+                report(), new AccessFilter(null, Affiliation.OUTSIDE_COLLABORATOR, true, true));
 
         assertThat(repositories).extracting(RepositoryAccess::name).containsExactly("api");
     }

@@ -66,13 +66,16 @@ class LargeOrganizationIT {
     void reportsOnTwelveHundredRepositoriesWithExactRequestCount() throws Exception {
         int pages = REPOSITORIES / PAGE_SIZE;
         for (int page = 1; page <= pages; page++) {
-            var response = okJson(repositories((page - 1) * PAGE_SIZE + 1, PAGE_SIZE)).withFixedDelay(LATENCY_MS);
+            var response =
+                    okJson(repositories((page - 1) * PAGE_SIZE + 1, PAGE_SIZE)).withFixedDelay(LATENCY_MS);
             if (page < pages) {
-                response.withHeader("Link", "<" + github.baseUrl() + "/organizations/1/repos?page=" + (page + 1)
-                        + ">; rel=\"next\"");
+                response.withHeader(
+                        "Link",
+                        "<" + github.baseUrl() + "/organizations/1/repos?page=" + (page + 1) + ">; rel=\"next\"");
             }
             github.stubFor(WireMock.get(urlPathEqualTo("/orgs/big/repos"))
-                    .withQueryParam("page", equalTo(Integer.toString(page))).willReturn(response));
+                    .withQueryParam("page", equalTo(Integer.toString(page)))
+                    .willReturn(response));
         }
         github.stubFor(WireMock.get(urlPathMatching("/orgs/big/(members|outside_collaborators)"))
                 .willReturn(okJson("[]").withFixedDelay(LATENCY_MS)));
@@ -91,8 +94,12 @@ class LargeOrganizationIT {
         // ceil(repos / 100) + 2 membership calls + one collaborators call per repository
         int expectedRequests = pages + 2 + REPOSITORIES;
         assertThat(github.findAll(anyRequestedFor(anyUrl()))).hasSize(expectedRequests);
-        log.info("benchmark: {} repositories, {} GitHub requests, {} ms added latency per request, {} ms total",
-                REPOSITORIES, expectedRequests, LATENCY_MS, elapsed.toMillis());
+        log.info(
+                "benchmark: {} repositories, {} GitHub requests, {} ms added latency per request, {} ms total",
+                REPOSITORIES,
+                expectedRequests,
+                LATENCY_MS,
+                elapsed.toMillis());
     }
 
     private static String repositories(int firstId, int count) {

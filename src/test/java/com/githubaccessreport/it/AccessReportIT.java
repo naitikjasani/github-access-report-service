@@ -52,7 +52,8 @@ class AccessReportIT {
 
     @BeforeEach
     void setUp() {
-        Objects.requireNonNull(cacheManager.getCache(CacheConfig.ACCESS_REPORTS)).clear();
+        Objects.requireNonNull(cacheManager.getCache(CacheConfig.ACCESS_REPORTS))
+                .clear();
         GitHubStubs.acme(github);
     }
 
@@ -84,7 +85,8 @@ class AccessReportIT {
     @Test
     void outsideCollaboratorsWithWriteAccess() throws Exception {
         mvc.perform(get("/api/v1/orgs/acme/access/users")
-                        .param("affiliation", "OUTSIDE_COLLABORATOR").param("minPermission", "WRITE"))
+                        .param("affiliation", "OUTSIDE_COLLABORATOR")
+                        .param("minPermission", "WRITE"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[*].login", contains("olga")))
                 .andExpect(jsonPath("$.items[0].repositories[0].permission").value("WRITE"));
@@ -115,7 +117,8 @@ class AccessReportIT {
 
     @Test
     void unknownOrganizationIs404Problem() throws Exception {
-        github.stubFor(WireMock.get(urlPathEqualTo("/orgs/nope/repos")).willReturn(aResponse().withStatus(404)));
+        github.stubFor(WireMock.get(urlPathEqualTo("/orgs/nope/repos"))
+                .willReturn(aResponse().withStatus(404)));
 
         mvc.perform(get("/api/v1/orgs/nope/access/users"))
                 .andExpect(status().isNotFound())
@@ -124,7 +127,8 @@ class AccessReportIT {
 
     @Test
     void invalidServiceTokenIs502() throws Exception {
-        github.stubFor(WireMock.get(urlPathEqualTo("/orgs/badtoken/repos")).willReturn(aResponse().withStatus(401)));
+        github.stubFor(WireMock.get(urlPathEqualTo("/orgs/badtoken/repos"))
+                .willReturn(aResponse().withStatus(401)));
 
         mvc.perform(get("/api/v1/orgs/badtoken/access/users"))
                 .andExpect(status().isBadGateway())
@@ -133,7 +137,8 @@ class AccessReportIT {
 
     @Test
     void persistentGitHubOutageIs502AfterRetries() throws Exception {
-        github.stubFor(WireMock.get(urlPathEqualTo("/repos/acme/web/collaborators")).willReturn(aResponse().withStatus(500)));
+        github.stubFor(WireMock.get(urlPathEqualTo("/repos/acme/web/collaborators"))
+                .willReturn(aResponse().withStatus(500)));
 
         mvc.perform(get("/api/v1/orgs/acme/access/users"))
                 .andExpect(status().isBadGateway())

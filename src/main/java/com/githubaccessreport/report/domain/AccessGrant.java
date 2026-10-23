@@ -5,5 +5,5 @@ package com.githubaccessreport.report.domain;
  *
  * @param roleName GitHub's role name, which may be a custom role; {@code permission} is its base level
  */
-public record AccessGrant(User user, Repository repository, Permission permission, String roleName,
-        Affiliation affiliation) {}
+public record AccessGrant(
+        User user, Repository repository, Permission permission, String roleName, Affiliation affiliation) {}

@@ -61,13 +61,20 @@ public class GitHubHttp {
     private final Duration maxRetryAfter;
 
     @Autowired
-    public GitHubHttp(RestClient gitHubApiRestClient, GitHubProperties properties, RateLimitTracker rateLimitTracker,
+    public GitHubHttp(
+            RestClient gitHubApiRestClient,
+            GitHubProperties properties,
+            RateLimitTracker rateLimitTracker,
             Clock clock) {
         this(gitHubApiRestClient, properties, rateLimitTracker, clock, new RetryListener() {});
     }
 
-    GitHubHttp(RestClient gitHubApiRestClient, GitHubProperties properties, RateLimitTracker rateLimitTracker,
-            Clock clock, RetryListener retryListener) {
+    GitHubHttp(
+            RestClient gitHubApiRestClient,
+            GitHubProperties properties,
+            RateLimitTracker rateLimitTracker,
+            Clock clock,
+            RetryListener retryListener) {
         this.restClient = gitHubApiRestClient;
         this.rateLimitTracker = rateLimitTracker;
         this.clock = clock;
@@ -87,14 +94,15 @@ public class GitHubHttp {
 
     /** GET a single JSON document. */
     public <T> T get(String uriTemplate, Class<T> type, Object... uriVariables) {
-        return execute(uriTemplate, ParameterizedTypeReference.<T>forType(type), uriVariables).body();
+        return execute(uriTemplate, ParameterizedTypeReference.<T>forType(type), uriVariables)
+                .body();
     }
 
     /** GET every page of a collection, following GitHub's {@code Link: rel="next"}. */
-    public <T> List<T> getAllPages(String uriTemplate, ParameterizedTypeReference<List<T>> type,
-            Object... uriVariables) {
-        String pagedTemplate = uriTemplate + (uriTemplate.contains("?") ? "&" : "?")
-                + "per_page=" + PER_PAGE + "&page={page}";
+    public <T> List<T> getAllPages(
+            String uriTemplate, ParameterizedTypeReference<List<T>> type, Object... uriVariables) {
+        String pagedTemplate =
+                uriTemplate + (uriTemplate.contains("?") ? "&" : "?") + "per_page=" + PER_PAGE + "&page={page}";
         List<T> items = new ArrayList<>();
         int page = 1;
         while (true) {
@@ -127,9 +135,13 @@ public class GitHubHttp {
                         && secondaryLimitWaits < MAX_SECONDARY_LIMIT_WAITS
                         && limit.retryAfter().compareTo(maxRetryAfter) <= 0) {
                     secondaryLimitWaits++;
-                    log.warn("GitHub secondary rate limit on {}; waiting {}s (attempt {})",
-                            uriTemplate, limit.retryAfter().toSeconds(), secondaryLimitWaits);
-                    sleep(limit.retryAfter().plusMillis(ThreadLocalRandom.current().nextLong(250)));
+                    log.warn(
+                            "GitHub secondary rate limit on {}; waiting {}s (attempt {})",
+                            uriTemplate,
+                            limit.retryAfter().toSeconds(),
+                            secondaryLimitWaits);
+                    sleep(limit.retryAfter()
+                            .plusMillis(ThreadLocalRandom.current().nextLong(250)));
                     continue;
                 }
                 if (Thread.currentThread().isInterrupted()) {
@@ -146,19 +158,17 @@ public class GitHubHttp {
     private <T> Response<T> exchange(String uriTemplate, ParameterizedTypeReference<T> type, Object[] variables) {
         acquirePermit();
         try {
-            return restClient.get()
-                    .uri(uriTemplate, variables)
-                    .exchange((request, response) -> {
-                        HttpHeaders headers = response.getHeaders();
-                        rateLimitTracker.record(headers);
-                        int status = response.getStatusCode().value();
-                        if (response.getStatusCode().is2xxSuccessful()) {
-                            return new Response<>(response.bodyTo(type), headers);
-                        }
-                        String body = readErrorBody(response.getBody());
-                        log.debug("GitHub returned HTTP {} for {}", status, uriTemplate);
-                        throw GitHubErrorClassifier.classify(status, headers, body, clock.instant());
-                    });
+            return restClient.get().uri(uriTemplate, variables).exchange((request, response) -> {
+                HttpHeaders headers = response.getHeaders();
+                rateLimitTracker.record(headers);
+                int status = response.getStatusCode().value();
+                if (response.getStatusCode().is2xxSuccessful()) {
+                    return new Response<>(response.bodyTo(type), headers);
+                }
+                String body = readErrorBody(response.getBody());
+                log.debug("GitHub returned HTTP {} for {}", status, uriTemplate);
+                throw GitHubErrorClassifier.classify(status, headers, body, clock.instant());
+            });
         } catch (ResourceAccessException e) {
             if (Thread.currentThread().isInterrupted()) {
                 throw new CancellationException("GitHub call cancelled: " + uriTemplate);
@@ -168,7 +178,8 @@ public class GitHubHttp {
             // The body failed to arrive (connection dropped mid-stream) -> transient; it arrived but
             // does not parse (schema drift) -> retrying would not help.
             if (NestedExceptionUtils.getRootCause(e) instanceof IOException) {
-                throw new GitHubException.Unavailable("Connection to GitHub failed mid-response: " + e.getMessage(), 0, e);
+                throw new GitHubException.Unavailable(
+                        "Connection to GitHub failed mid-response: " + e.getMessage(), 0, e);
             }
             throw new GitHubException.UnexpectedResponse("Unreadable GitHub response for " + uriTemplate, 200, e);
         } finally {

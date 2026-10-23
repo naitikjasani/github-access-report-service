@@ -32,7 +32,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class RateLimitBudgetIT {
 
     @RegisterExtension
-    static WireMockExtension github = WireMockExtension.newInstance().options(wireMockConfig().dynamicPort()).build();
+    static WireMockExtension github = WireMockExtension.newInstance()
+            .options(wireMockConfig().dynamicPort())
+            .build();
 
     @DynamicPropertySource
     static void githubBaseUrl(DynamicPropertyRegistry registry) {
@@ -45,11 +47,12 @@ class RateLimitBudgetIT {
     @Test
     void refusesWhenRemainingQuotaCannotCoverTheReport() throws Exception {
         long resetIn10Minutes = Instant.now().plusSeconds(600).getEpochSecond();
-        github.stubFor(WireMock.get(urlPathEqualTo("/orgs/acme/repos")).willReturn(okJson(GitHubStubs.fixture("repos.json"))
-                .withHeader("x-ratelimit-limit", "5000")
-                .withHeader("x-ratelimit-remaining", "3")
-                .withHeader("x-ratelimit-reset", Long.toString(resetIn10Minutes))
-                .withHeader("x-ratelimit-resource", "core")));
+        github.stubFor(WireMock.get(urlPathEqualTo("/orgs/acme/repos"))
+                .willReturn(okJson(GitHubStubs.fixture("repos.json"))
+                        .withHeader("x-ratelimit-limit", "5000")
+                        .withHeader("x-ratelimit-remaining", "3")
+                        .withHeader("x-ratelimit-reset", Long.toString(resetIn10Minutes))
+                        .withHeader("x-ratelimit-resource", "core")));
 
         mvc.perform(get("/api/v1/orgs/acme/access/users"))
                 .andExpect(status().isTooManyRequests())

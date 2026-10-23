@@ -17,8 +17,6 @@ public class OpenApiConfig {
                         .version("v1")
                         .description("Who can access which repositories in a GitHub organization, "
                                 + "and what the report could not see. Errors are RFC 9457 problem details.")
-                        .license(new License()
-                                .name("MIT License")
-                                .url("https://opensource.org/licenses/MIT")));
+                        .license(new License().name("MIT License").url("https://opensource.org/licenses/MIT")));
     }
 }

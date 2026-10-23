@@ -11,8 +11,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class GitHubRestClient {
 
-    private static final ParameterizedTypeReference<List<RepositoryJson>> REPOSITORIES = new ParameterizedTypeReference<>() {};
-    private static final ParameterizedTypeReference<List<CollaboratorJson>> COLLABORATORS = new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<RepositoryJson>> REPOSITORIES =
+            new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<CollaboratorJson>> COLLABORATORS =
+            new ParameterizedTypeReference<>() {};
     private static final ParameterizedTypeReference<List<UserJson>> USERS = new ParameterizedTypeReference<>() {};
 
     private final GitHubHttp http;

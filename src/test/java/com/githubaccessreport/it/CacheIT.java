@@ -36,7 +36,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class CacheIT {
 
     @RegisterExtension
-    static WireMockExtension github = WireMockExtension.newInstance().options(wireMockConfig().dynamicPort()).build();
+    static WireMockExtension github = WireMockExtension.newInstance()
+            .options(wireMockConfig().dynamicPort())
+            .build();
 
     @DynamicPropertySource
     static void githubBaseUrl(DynamicPropertyRegistry registry) {
@@ -51,7 +53,8 @@ class CacheIT {
 
     @BeforeEach
     void setUp() {
-        Objects.requireNonNull(cacheManager.getCache(CacheConfig.ACCESS_REPORTS)).clear();
+        Objects.requireNonNull(cacheManager.getCache(CacheConfig.ACCESS_REPORTS))
+                .clear();
         GitHubStubs.acme(github);
         // Slow the first call down so concurrent requests really overlap.
         github.stubFor(WireMock.get(urlPathEqualTo("/orgs/acme/repos"))
@@ -64,7 +67,8 @@ class CacheIT {
             List<Future<Integer>> responses = new ArrayList<>();
             for (int i = 0; i < 10; i++) {
                 String path = i % 2 == 0 ? "/api/v1/orgs/acme/access/users" : "/api/v1/orgs/Acme/access/repositories";
-                responses.add(clients.submit(() -> mvc.perform(get(path)).andReturn().getResponse().getStatus()));
+                responses.add(clients.submit(
+                        () -> mvc.perform(get(path)).andReturn().getResponse().getStatus()));
             }
             for (Future<Integer> response : responses) {
                 assertThat(response.get()).isEqualTo(200);

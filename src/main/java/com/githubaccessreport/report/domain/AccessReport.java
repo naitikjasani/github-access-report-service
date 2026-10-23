@@ -10,8 +10,12 @@ import java.util.List;
  * @param repositories readable repositories, sorted by name (skipped ones are in {@code coverage})
  * @param grants       one row per (user, repository), sorted by login then repository name
  */
-public record AccessReport(String organization, Instant generatedAt, List<Repository> repositories,
-        List<AccessGrant> grants, Coverage coverage) {
+public record AccessReport(
+        String organization,
+        Instant generatedAt,
+        List<Repository> repositories,
+        List<AccessGrant> grants,
+        Coverage coverage) {
 
     public AccessReport {
         repositories = List.copyOf(repositories);

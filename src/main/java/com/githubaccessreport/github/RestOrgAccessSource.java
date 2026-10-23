@@ -202,13 +202,17 @@ public class RestOrgAccessSource implements OrgAccessSource {
     }
 
     private static Repository toRepository(RepositoryJson json) {
-        return new Repository(json.id(), json.name(),
+        return new Repository(
+                json.id(),
+                json.name(),
                 Visibility.fromGitHub(json.visibility(), json.privateRepository()),
-                json.archivedRepository(), json.forkRepository(), json.pushedAt());
+                json.archivedRepository(),
+                json.forkRepository(),
+                json.pushedAt());
     }
 
-    private record RepositoryResult(RepositoryJson repository, List<CollaboratorJson> collaborators,
-            SkippedRepository.Reason skipReason) {}
+    private record RepositoryResult(
+            RepositoryJson repository, List<CollaboratorJson> collaborators, SkippedRepository.Reason skipReason) {}
 
     private record Membership(Optional<Set<Long>> ownerIds, Optional<Set<Long>> outsideCollaboratorIds) {
 

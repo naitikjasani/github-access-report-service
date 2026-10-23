@@ -41,7 +41,9 @@ class DeadlineIT {
     private static final int SLOW_MILLIS = 3_000;
 
     @RegisterExtension
-    static WireMockExtension github = WireMockExtension.newInstance().options(wireMockConfig().dynamicPort()).build();
+    static WireMockExtension github = WireMockExtension.newInstance()
+            .options(wireMockConfig().dynamicPort())
+            .build();
 
     @DynamicPropertySource
     static void githubBaseUrl(DynamicPropertyRegistry registry) {

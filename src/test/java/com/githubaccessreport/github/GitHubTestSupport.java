@@ -15,8 +15,14 @@ final class GitHubTestSupport {
     private GitHubTestSupport() {}
 
     static GitHubProperties properties(String baseUrl, int maxConcurrency, Duration readTimeout) {
-        return new GitHubProperties(TOKEN, URI.create(baseUrl), Duration.ofSeconds(1), readTimeout,
-                maxConcurrency, 2, Duration.ofSeconds(5));
+        return new GitHubProperties(
+                TOKEN,
+                URI.create(baseUrl),
+                Duration.ofSeconds(1),
+                readTimeout,
+                maxConcurrency,
+                2,
+                Duration.ofSeconds(5));
     }
 
     static GitHubHttp http(GitHubProperties properties, RateLimitTracker tracker) {

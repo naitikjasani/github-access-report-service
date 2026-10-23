@@ -46,10 +46,13 @@ class GitHubHttpTest {
 
     @Test
     void followsLinkHeaderAcrossPages() {
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).withQueryParam("page", equalTo("1"))
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .withQueryParam("page", equalTo("1"))
                 .willReturn(okJson(repos(1, 100))
-                        .withHeader("Link", "<" + github.baseUrl() + REPOS_PATH + "?per_page=100&page=2>; rel=\"next\"")));
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).withQueryParam("page", equalTo("2"))
+                        .withHeader(
+                                "Link", "<" + github.baseUrl() + REPOS_PATH + "?per_page=100&page=2>; rel=\"next\"")));
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .withQueryParam("page", equalTo("2"))
                 .willReturn(okJson(repos(101, 30))));
 
         List<RepositoryJson> result = http.getAllPages(REPOS_PATH, REPOS);
@@ -81,11 +84,13 @@ class GitHubHttpTest {
 
     @Test
     void retriesTransientServerErrors() {
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("flaky")
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("flaky")
                 .whenScenarioStateIs(Scenario.STARTED)
                 .willReturn(aResponse().withStatus(502))
                 .willSetStateTo("recovered"));
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("flaky")
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("flaky")
                 .whenScenarioStateIs("recovered")
                 .willReturn(okJson(repos(1, 3))));
 
@@ -97,8 +102,7 @@ class GitHubHttpTest {
     void givesUpAfterMaxRetries() {
         github.stubFor(get(urlPathEqualTo(REPOS_PATH)).willReturn(aResponse().withStatus(503)));
 
-        assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS))
-                .isInstanceOf(GitHubException.Unavailable.class);
+        assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS)).isInstanceOf(GitHubException.Unavailable.class);
         github.verify(3, getRequestedFor(urlPathEqualTo(REPOS_PATH))); // 1 attempt + 2 retries
     }
 
@@ -107,8 +111,7 @@ class GitHubHttpTest {
         github.stubFor(get(urlPathEqualTo(REPOS_PATH)).willReturn(okJson("[]").withFixedDelay(2_000)));
 
         long start = System.nanoTime();
-        assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS))
-                .isInstanceOf(GitHubException.Unavailable.class);
+        assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS)).isInstanceOf(GitHubException.Unavailable.class);
         Duration elapsed = Duration.ofNanos(System.nanoTime() - start);
 
         // 3 attempts x 500 ms read timeout + backoff (~200 + ~400 ms, +/- jitter): well under 2 s each.
@@ -117,27 +120,35 @@ class GitHubHttpTest {
 
     @Test
     void primaryRateLimitFailsFastWithoutRetrying() {
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).willReturn(aResponse().withStatus(403)
-                .withHeader("x-ratelimit-limit", "5000")
-                .withHeader("x-ratelimit-remaining", "0")
-                .withHeader("x-ratelimit-reset", "1900000000")
-                .withBody("{\"message\":\"API rate limit exceeded\"}")));
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .willReturn(aResponse()
+                        .withStatus(403)
+                        .withHeader("x-ratelimit-limit", "5000")
+                        .withHeader("x-ratelimit-remaining", "0")
+                        .withHeader("x-ratelimit-reset", "1900000000")
+                        .withBody("{\"message\":\"API rate limit exceeded\"}")));
 
         assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS))
-                .isInstanceOfSatisfying(GitHubException.PrimaryRateLimitExceeded.class,
+                .isInstanceOfSatisfying(
+                        GitHubException.PrimaryRateLimitExceeded.class,
                         e -> assertThat(e.resetAt()).isEqualTo(Instant.ofEpochSecond(1_900_000_000)));
         github.verify(1, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
-        assertThat(tracker.latest("core")).hasValueSatisfying(s -> assertThat(s.remaining()).isZero());
+        assertThat(tracker.latest("core"))
+                .hasValueSatisfying(s -> assertThat(s.remaining()).isZero());
     }
 
     @Test
     void waitsForShortSecondaryLimitThenSucceeds() {
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("secondary")
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("secondary")
                 .whenScenarioStateIs(Scenario.STARTED)
-                .willReturn(aResponse().withStatus(403).withHeader("Retry-After", "1")
+                .willReturn(aResponse()
+                        .withStatus(403)
+                        .withHeader("Retry-After", "1")
                         .withBody("{\"message\":\"You have exceeded a secondary rate limit\"}"))
                 .willSetStateTo("cooled-down"));
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("secondary")
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("secondary")
                 .whenScenarioStateIs("cooled-down")
                 .willReturn(okJson(repos(1, 2))));
 
@@ -154,16 +165,19 @@ class GitHubHttpTest {
                 .willReturn(aResponse().withStatus(429).withHeader("Retry-After", "120")));
 
         assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS))
-                .isInstanceOfSatisfying(GitHubException.SecondaryRateLimitExceeded.class,
+                .isInstanceOfSatisfying(
+                        GitHubException.SecondaryRateLimitExceeded.class,
                         e -> assertThat(e.retryAfter()).isEqualTo(Duration.ofSeconds(120)));
         github.verify(1, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
     }
 
     @Test
     void permissionErrorsAreNotRetried() {
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).willReturn(aResponse().withStatus(403)
-                .withHeader("x-ratelimit-remaining", "4000")
-                .withBody("{\"message\":\"Must have push access\"}")));
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .willReturn(aResponse()
+                        .withStatus(403)
+                        .withHeader("x-ratelimit-remaining", "4000")
+                        .withBody("{\"message\":\"Must have push access\"}")));
 
         assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS)).isInstanceOf(GitHubException.Forbidden.class);
         github.verify(1, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
@@ -171,8 +185,10 @@ class GitHubHttpTest {
 
     @Test
     void unauthorizedAndNotFoundAreDistinct() {
-        github.stubFor(get(urlPathEqualTo("/orgs/bad-token/repos")).willReturn(aResponse().withStatus(401)));
-        github.stubFor(get(urlPathEqualTo("/orgs/missing/repos")).willReturn(aResponse().withStatus(404)));
+        github.stubFor(get(urlPathEqualTo("/orgs/bad-token/repos"))
+                .willReturn(aResponse().withStatus(401)));
+        github.stubFor(get(urlPathEqualTo("/orgs/missing/repos"))
+                .willReturn(aResponse().withStatus(404)));
 
         assertThatThrownBy(() -> http.getAllPages("/orgs/{org}/repos", REPOS, "bad-token"))
                 .isInstanceOf(GitHubException.Unauthorized.class);
@@ -184,7 +200,8 @@ class GitHubHttpTest {
     void toleratesMissingOptionalFields() {
         github.stubFor(get(urlPathEqualTo(REPOS_PATH)).willReturn(okJson("[{\"id\": 7, \"name\": \"minimal\"}]")));
 
-        assertThat(http.getAllPages(REPOS_PATH, REPOS)).singleElement()
+        assertThat(http.getAllPages(REPOS_PATH, REPOS))
+                .singleElement()
                 .satisfies(repo -> assertThat(repo.archivedRepository()).isFalse());
     }
 
@@ -199,11 +216,13 @@ class GitHubHttpTest {
 
     @Test
     void connectionDroppedMidResponseIsRetried() {
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("drop")
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("drop")
                 .whenScenarioStateIs(Scenario.STARTED)
                 .willReturn(aResponse().withFault(Fault.RANDOM_DATA_THEN_CLOSE))
                 .willSetStateTo("stable"));
-        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).inScenario("drop")
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("drop")
                 .whenScenarioStateIs("stable")
                 .willReturn(okJson(repos(1, 1))));
 
@@ -215,8 +234,7 @@ class GitHubHttpTest {
         return IntStream.range(firstId, firstId + count)
                 .mapToObj(i -> """
                         {"id": %d, "name": "repo-%d", "full_name": "acme/repo-%d", "private": false,
-                         "visibility": "public", "archived": false, "fork": false, "pushed_at": "2026-01-01T00:00:00Z"}"""
-                        .formatted(i, i, i))
+                         "visibility": "public", "archived": false, "fork": false, "pushed_at": "2026-01-01T00:00:00Z"}""".formatted(i, i, i))
                 .collect(Collectors.joining(",", "[", "]"));
     }
 }

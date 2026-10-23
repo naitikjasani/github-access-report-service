@@ -8,6 +8,11 @@ import java.util.List;
 /** User → repositories view. */
 public record UserAccess(long id, String login, Affiliation affiliation, List<RepositoryGrant> repositories) {
 
-    public record RepositoryGrant(String name, Permission permission, String roleName, Visibility visibility,
-            boolean archived, boolean fork) {}
+    public record RepositoryGrant(
+            String name,
+            Permission permission,
+            String roleName,
+            Visibility visibility,
+            boolean archived,
+            boolean fork) {}
 }

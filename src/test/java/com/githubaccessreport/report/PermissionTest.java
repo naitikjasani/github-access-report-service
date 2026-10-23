@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.githubaccessreport.report.domain.Permission;
 import java.util.Map;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.api.Test;
 
 class PermissionTest {
 
@@ -25,7 +25,8 @@ class PermissionTest {
 
     @Test
     void flagsAreUsedWhenRoleNameIsMissing() {
-        assertThat(Permission.fromGitHub(null, Map.of("push", true, "pull", true))).isEqualTo(Permission.WRITE);
+        assertThat(Permission.fromGitHub(null, Map.of("push", true, "pull", true)))
+                .isEqualTo(Permission.WRITE);
     }
 
     @Test

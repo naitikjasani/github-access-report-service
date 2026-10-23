@@ -34,16 +34,22 @@ class AccessReportServiceTest {
 
     @Test
     void sortsGrantsAndRepositoriesAndPassesDeadline() {
-        var service = new AccessReportService(source(new OrgAccessSnapshot(List.of(WEB, API),
-                List.of(grant(BOB, WEB, Permission.READ, Affiliation.MEMBER),
-                        grant(ALICE, WEB, Permission.ADMIN, Affiliation.OWNER),
-                        grant(ALICE, API, Permission.ADMIN, Affiliation.OWNER)),
-                Coverage.of(2, List.of(), true))), properties, clock);
+        var service = new AccessReportService(
+                source(new OrgAccessSnapshot(
+                        List.of(WEB, API),
+                        List.of(
+                                grant(BOB, WEB, Permission.READ, Affiliation.MEMBER),
+                                grant(ALICE, WEB, Permission.ADMIN, Affiliation.OWNER),
+                                grant(ALICE, API, Permission.ADMIN, Affiliation.OWNER)),
+                        Coverage.of(2, List.of(), true))),
+                properties,
+                clock);
 
         AccessReport report = service.getReport("acme");
 
         assertThat(report.repositories()).extracting(r -> r.name()).containsExactly("api", "web");
-        assertThat(report.grants()).extracting(g -> g.user().login() + "/" + g.repository().name())
+        assertThat(report.grants())
+                .extracting(g -> g.user().login() + "/" + g.repository().name())
                 .containsExactly("alice/api", "alice/web", "bob/web");
         assertThat(report.generatedAt()).isEqualTo(NOW);
         assertThat(deadlineSeen.get()).isEqualTo(NOW.plusSeconds(30));
@@ -51,10 +57,15 @@ class AccessReportServiceTest {
 
     @Test
     void duplicateGrantsKeepHighestPermission() {
-        var service = new AccessReportService(source(new OrgAccessSnapshot(List.of(API),
-                List.of(grant(BOB, API, Permission.READ, Affiliation.MEMBER),
-                        grant(BOB, API, Permission.WRITE, Affiliation.MEMBER)),
-                Coverage.of(1, List.of(), true))), properties, clock);
+        var service = new AccessReportService(
+                source(new OrgAccessSnapshot(
+                        List.of(API),
+                        List.of(
+                                grant(BOB, API, Permission.READ, Affiliation.MEMBER),
+                                grant(BOB, API, Permission.WRITE, Affiliation.MEMBER)),
+                        Coverage.of(1, List.of(), true))),
+                properties,
+                clock);
 
         List<AccessGrant> grants = service.getReport("acme").grants();
 
@@ -64,7 +75,9 @@ class AccessReportServiceTest {
     @Test
     void emptyOrganizationIsACompleteEmptyReport() {
         var service = new AccessReportService(
-                source(new OrgAccessSnapshot(List.of(), List.of(), Coverage.of(0, List.of(), true))), properties, clock);
+                source(new OrgAccessSnapshot(List.of(), List.of(), Coverage.of(0, List.of(), true))),
+                properties,
+                clock);
 
         AccessReport report = service.getReport("empty");
 

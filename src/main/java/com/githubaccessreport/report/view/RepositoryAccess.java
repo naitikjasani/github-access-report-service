@@ -7,9 +7,14 @@ import java.time.Instant;
 import java.util.List;
 
 /** Repository → users view. */
-public record RepositoryAccess(String name, Visibility visibility, boolean archived, boolean fork,
-        Instant pushedAt, List<Collaborator> collaborators) {
+public record RepositoryAccess(
+        String name,
+        Visibility visibility,
+        boolean archived,
+        boolean fork,
+        Instant pushedAt,
+        List<Collaborator> collaborators) {
 
-    public record Collaborator(long id, String login, Permission permission, String roleName,
-            Affiliation affiliation) {}
+    public record Collaborator(
+            long id, String login, Permission permission, String roleName, Affiliation affiliation) {}
 }

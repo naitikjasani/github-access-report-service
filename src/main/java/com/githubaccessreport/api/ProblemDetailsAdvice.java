@@ -59,7 +59,10 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(GitHubException.PrimaryRateLimitExceeded.class)
     ResponseEntity<ProblemDetail> primaryRateLimit(GitHubException.PrimaryRateLimitExceeded e) {
         log.warn("GitHub primary rate limit exhausted until {}", e.resetAt());
-        ProblemDetail body = body(HttpStatus.TOO_MANY_REQUESTS, "rate-limited", "GitHub rate limit exhausted",
+        ProblemDetail body = body(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "rate-limited",
+                "GitHub rate limit exhausted",
                 "The service's GitHub quota is used up until " + e.resetAt() + ".");
         body.setProperty("resetAt", e.resetAt());
         return withRetryAfter(body, until(e.resetAt()));
@@ -68,8 +71,11 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(RateLimitBudgetExceededException.class)
     ResponseEntity<ProblemDetail> budget(RateLimitBudgetExceededException e) {
         log.warn(e.getMessage());
-        ProblemDetail body = body(HttpStatus.TOO_MANY_REQUESTS, "rate-limit-budget",
-                "Not enough GitHub quota for this report", e.getMessage());
+        ProblemDetail body = body(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "rate-limit-budget",
+                "Not enough GitHub quota for this report",
+                e.getMessage());
         body.setProperty("requiredRequests", e.required());
         body.setProperty("remainingRequests", e.remaining());
         body.setProperty("resetAt", e.resetAt());
@@ -78,8 +84,12 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(GitHubException.SecondaryRateLimitExceeded.class)
     ResponseEntity<ProblemDetail> secondaryRateLimit(GitHubException.SecondaryRateLimitExceeded e) {
-        log.warn("GitHub secondary rate limit; asked to wait {}s", e.retryAfter().toSeconds());
-        ProblemDetail body = body(HttpStatus.SERVICE_UNAVAILABLE, "upstream-throttled", "GitHub is throttling requests",
+        log.warn(
+                "GitHub secondary rate limit; asked to wait {}s", e.retryAfter().toSeconds());
+        ProblemDetail body = body(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "upstream-throttled",
+                "GitHub is throttling requests",
                 "GitHub asked us to slow down. Retry after the indicated delay.");
         return withRetryAfter(body, e.retryAfter());
     }
@@ -87,14 +97,20 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(GitHubException.Unauthorized.class)
     ResponseEntity<ProblemDetail> upstreamAuth(GitHubException.Unauthorized e) {
         log.error("GitHub rejected the service token; check GITHUB_TOKEN ({})", e.getMessage());
-        return problem(HttpStatus.BAD_GATEWAY, "upstream-auth-failed", "GitHub rejected the service credentials",
+        return problem(
+                HttpStatus.BAD_GATEWAY,
+                "upstream-auth-failed",
+                "GitHub rejected the service credentials",
                 "The service is misconfigured. This is not a problem with your request.");
     }
 
     @ExceptionHandler(GitHubException.Forbidden.class)
     ResponseEntity<ProblemDetail> upstreamForbidden(GitHubException.Forbidden e) {
         log.warn("GitHub denied organization-level access: {}", e.getMessage());
-        return problem(HttpStatus.BAD_GATEWAY, "upstream-forbidden", "GitHub denied access",
+        return problem(
+                HttpStatus.BAD_GATEWAY,
+                "upstream-forbidden",
+                "GitHub denied access",
                 "The service token is not allowed to read this organization.");
     }
 
@@ -105,7 +121,10 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     })
     ResponseEntity<ProblemDetail> upstreamUnavailable(GitHubException e) {
         log.error("GitHub call failed (status {}): {}", e.status(), e.getMessage(), e.getCause());
-        return problem(HttpStatus.BAD_GATEWAY, "upstream-unavailable", "GitHub request failed",
+        return problem(
+                HttpStatus.BAD_GATEWAY,
+                "upstream-unavailable",
+                "GitHub request failed",
                 "GitHub did not respond successfully after retries.");
     }
 
@@ -118,8 +137,8 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> unexpected(Exception e) {
         log.error("Unexpected error", e);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "internal-error", "Internal error",
-                "An unexpected error occurred.");
+        return problem(
+                HttpStatus.INTERNAL_SERVER_ERROR, "internal-error", "Internal error", "An unexpected error occurred.");
     }
 
     /** Name the offending parameter instead of Spring's generic "Validation failure". */
@@ -139,8 +158,8 @@ public class ProblemDetailsAdvice extends ResponseEntityExceptionHandler {
 
     /** Give Spring's built-in problems (400, 404, 405, ...) the same {@code code} and {@code type} shape. */
     @Override
-    protected ResponseEntity<Object> createResponseEntity(@Nullable Object body, HttpHeaders headers,
-            HttpStatusCode statusCode, WebRequest request) {
+    protected ResponseEntity<Object> createResponseEntity(
+            @Nullable Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         if (body instanceof ProblemDetail problem
                 && (problem.getProperties() == null || !problem.getProperties().containsKey("code"))) {
             String code = switch (statusCode.value()) {

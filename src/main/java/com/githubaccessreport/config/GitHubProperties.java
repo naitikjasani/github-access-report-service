@@ -16,7 +16,9 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("github")
 public record GitHubProperties(
-        @NotBlank(message = "must be set (export GITHUB_TOKEN=...)") String token,
+        @NotBlank(message = "must be set (export GITHUB_TOKEN=...)")
+        String token,
+
         @NotNull URI baseUrl,
         @NotNull Duration connectTimeout,
         @NotNull Duration readTimeout,
