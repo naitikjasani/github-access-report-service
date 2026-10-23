@@ -1,5 +1,7 @@
 package com.githubaccessreport.github;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.githubaccessreport.config.GitHubProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -41,6 +43,8 @@ import org.springframework.web.client.RestClientException;
  *       backoff and jitter.
  *   <li><b>Secondary rate limit:</b> waits for {@code Retry-After} if it is short, otherwise fails.
  *   <li><b>Primary rate limit:</b> fails fast; waiting up to an hour inside a request helps nobody.
+ *   <li><b>Conditional requests:</b> {@code If-None-Match} with the last ETag; 304s reuse the
+ *       cached body and don't consume quota.
  * </ul>
  *
  * Blocking calls are deliberate: they run on virtual threads, and an interrupt (deadline
@@ -52,6 +56,7 @@ public class GitHubHttp {
     private static final Logger log = LoggerFactory.getLogger(GitHubHttp.class);
 
     static final int PER_PAGE = 100;
+    private static final int MAX_VALIDATORS = 20_000;
     private static final int MAX_SECONDARY_LIMIT_WAITS = 2;
     private static final int MAX_ERROR_BODY_BYTES = 4096;
 
@@ -63,6 +68,19 @@ public class GitHubHttp {
     private final Duration maxRetryAfter;
 
     private final Counter retries;
+    private final Counter notModified;
+    private final Counter modified;
+
+    /**
+     * ETag + body of the last successful response per URL. Re-requesting with {@code If-None-Match}
+     * turns an unchanged page into a 304, which GitHub does not count against the primary rate
+     * limit, so rebuilding an unchanged report after the cache TTL costs almost no quota.
+     */
+    private final Cache<String, Validated> validators = Caffeine.newBuilder()
+            .maximumSize(MAX_VALIDATORS)
+            .expireAfterAccess(Duration.ofDays(1))
+            .build();
+
     private final Counter secondaryLimitWaits;
     private final MeterRegistry meterRegistry;
 
@@ -80,6 +98,13 @@ public class GitHubHttp {
         this.maxRetryAfter = properties.maxRetryAfter();
         this.retries = Counter.builder("github.retries")
                 .description("GitHub calls retried after a transient failure (5xx, timeout, I/O)")
+                .register(meterRegistry);
+        this.notModified = Counter.builder("github.conditional.requests")
+                .description("GitHub responses by conditional-request outcome; 304s do not use quota")
+                .tag("result", "not_modified")
+                .register(meterRegistry);
+        this.modified = Counter.builder("github.conditional.requests")
+                .tag("result", "modified")
                 .register(meterRegistry);
         this.secondaryLimitWaits = Counter.builder("github.ratelimit.secondary.waits")
                 .description("Times we waited out a short GitHub secondary rate limit")
@@ -166,14 +191,30 @@ public class GitHubHttp {
     }
 
     private <T> Response<T> exchange(String uriTemplate, ParameterizedTypeReference<T> type, Object[] variables) {
+        String key = uriTemplate + Arrays.toString(variables);
+        Validated previous = validators.getIfPresent(key);
         acquirePermit();
         try {
-            return restClient.get().uri(uriTemplate, variables).exchange((request, response) -> {
+            var request = restClient.get().uri(uriTemplate, variables);
+            if (previous != null) {
+                request = request.header(HttpHeaders.IF_NONE_MATCH, previous.etag());
+            }
+            return request.exchange((ignored, response) -> {
                 HttpHeaders headers = response.getHeaders();
                 rateLimitTracker.record(headers);
                 int status = response.getStatusCode().value();
+                if (status == 304 && previous != null) {
+                    notModified.increment();
+                    return previous.response();
+                }
                 if (response.getStatusCode().is2xxSuccessful()) {
-                    return new Response<>(response.bodyTo(type), headers);
+                    Response<T> fresh = new Response<>(response.bodyTo(type), linkOnly(headers));
+                    String etag = headers.getETag();
+                    if (etag != null) {
+                        validators.put(key, new Validated(etag, fresh));
+                    }
+                    modified.increment();
+                    return fresh;
                 }
                 String body = readErrorBody(response.getBody());
                 log.debug("GitHub returned HTTP {} for {}", status, uriTemplate);
@@ -232,5 +273,27 @@ public class GitHubHttp {
         return new String(body.readNBytes(MAX_ERROR_BODY_BYTES), StandardCharsets.UTF_8);
     }
 
+    /** Only pagination survives in cached responses; rate-limit headers always come from the live call. */
+    private static HttpHeaders linkOnly(HttpHeaders headers) {
+        HttpHeaders kept = new HttpHeaders();
+        String link = headers.getFirst(HttpHeaders.LINK);
+        if (link != null) {
+            kept.set(HttpHeaders.LINK, link);
+        }
+        return kept;
+    }
+
     private record Response<T>(T body, HttpHeaders headers) {}
+
+    /**
+     * Last 200 for a URL with its ETag. Bodies are immutable records, safe to share. The cast in
+     * {@link #response()} holds because the key includes the URI template, and each template is only
+     * ever requested with one response type.
+     */
+    private record Validated(String etag, Response<?> cached) {
+        @SuppressWarnings("unchecked")
+        <T> Response<T> response() {
+            return (Response<T>) cached;
+        }
+    }
 }

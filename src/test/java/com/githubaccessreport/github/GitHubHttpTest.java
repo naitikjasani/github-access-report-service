@@ -237,6 +237,43 @@ class GitHubHttpTest {
         github.verify(2, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
     }
 
+    @Test
+    void revalidatesWithEtagAndReusesBodyOn304() {
+        github.stubFor(
+                get(urlPathEqualTo(REPOS_PATH)).willReturn(okJson(repos(1, 2)).withHeader("ETag", "W/\"v1\"")));
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .withHeader("If-None-Match", equalTo("W/\"v1\""))
+                .atPriority(1)
+                .willReturn(aResponse().withStatus(304)));
+
+        List<RepositoryJson> first = http.getAllPages(REPOS_PATH, REPOS);
+        List<RepositoryJson> second = http.getAllPages(REPOS_PATH, REPOS);
+
+        assertThat(second).isEqualTo(first).hasSize(2);
+        github.verify(getRequestedFor(urlPathEqualTo(REPOS_PATH)).withoutHeader("If-None-Match"));
+        github.verify(getRequestedFor(urlPathEqualTo(REPOS_PATH)).withHeader("If-None-Match", equalTo("W/\"v1\"")));
+        assertThat(metrics.counter("github.conditional.requests", "result", "not_modified")
+                        .count())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void changedResourceReplacesCachedBody() {
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("change")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(okJson(repos(1, 1)).withHeader("ETag", "\"v1\""))
+                .willSetStateTo("changed"));
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH))
+                .inScenario("change")
+                .whenScenarioStateIs("changed")
+                .willReturn(okJson(repos(1, 3)).withHeader("ETag", "\"v2\"")));
+
+        http.getAllPages(REPOS_PATH, REPOS);
+
+        assertThat(http.getAllPages(REPOS_PATH, REPOS)).hasSize(3);
+    }
+
     static String repos(int firstId, int count) {
         return IntStream.range(firstId, firstId + count)
                 .mapToObj(i -> """
