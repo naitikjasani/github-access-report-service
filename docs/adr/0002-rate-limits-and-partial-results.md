@@ -52,6 +52,9 @@ deliberate outcome:
 **Given up:**
 - No proactive pacing to 900 points per minute. We rely on the concurrency limit plus honouring
   `Retry-After`.
+- The budget check is conservative. It assumes every call costs quota, but with ETag revalidation
+  (ADR-0003) many calls on a rebuild are free 304s, so it can refuse a rebuild that would have
+  succeeded.
 
 **Would revisit if:** `github.ratelimit.hits{type="secondary"}` is regularly non-zero; then add a
 token bucket in `GitHubHttp`.

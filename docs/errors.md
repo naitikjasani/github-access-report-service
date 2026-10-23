@@ -43,11 +43,17 @@ missing or wrong.
 **404.** GitHub returned 404 for the organization: it doesn't exist, or the service token cannot see
 it.
 
+### `report-job-not-found`
+**404.** No job with that id. Jobs are kept in memory for one hour and don't survive restarts.
+
 ### `method-not-allowed`
 **405.**
 
 ### `not-acceptable`
 **406.** The requested `Accept` type isn't offered.
+
+### `unsupported-media-type`
+**415.** `POST /api/v1/reports` expects `Content-Type: application/json`.
 
 ## GitHub quota
 
@@ -80,7 +86,9 @@ backoff and jitter, or returned a payload the service could not parse.
 
 ### `report-timeout`
 **504.** The report didn't finish within `report.sync-deadline` (default 45 s). Outstanding GitHub
-calls are cancelled when this happens.
+calls are cancelled when this happens. For large organizations, start an asynchronous job with
+`POST /api/v1/reports` (deadline `report.async-deadline`, default 10 min). A failed job carries the
+same problem in its `problem` field.
 
 ## Other
 

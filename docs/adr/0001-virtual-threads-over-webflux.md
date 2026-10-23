@@ -46,8 +46,9 @@ inside `synchronized`, which removes the main virtual-thread pitfall.
 - Streaming responses.
 - End-to-end backpressure to the caller.
 
-Neither is needed for a single bounded document. For very large organizations, an asynchronous
-job API is the answer rather than streaming.
+Neither is needed for a single bounded document. Very large organizations use an asynchronous job
+instead of streaming: `POST /api/v1/reports` builds the report with a longer deadline on a virtual
+thread, then publishes it into the same cache the synchronous views read from (`AsyncReportIT`).
 
 **Would revisit if:** the service had to hold thousands of concurrent long-lived client
 connections, or stream partial results.

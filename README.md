@@ -58,25 +58,52 @@ In this example:
 |---|---|
 | `GET /api/v1/orgs/{org}/access/users` | each user → their repositories |
 | `GET /api/v1/orgs/{org}/access/repositories` | each repository → its collaborators |
+| `GET /api/v1/orgs/{org}/access/findings` | access worth reviewing, most severe first |
+| `GET /api/v1/orgs/{org}/access/grants.csv` | one CSV row per grant, for spreadsheets |
+| `POST /api/v1/reports` → `GET /api/v1/reports/{id}` | asynchronous job for organizations too large for one request |
 
 Filters: `minPermission` (`READ` < `TRIAGE` < `WRITE` < `MAINTAIN` < `ADMIN`), `affiliation`
 (`OWNER`, `MEMBER`, `OUTSIDE_COLLABORATOR`), `includeArchived`, `includeForks`. Paging: `page`,
 `size` (max 200). For example, *outside collaborators who can push*:
 `/access/users?affiliation=OUTSIDE_COLLABORATOR&minPermission=WRITE`.
 
+**Findings** answer "what should we look at?". On the same fixture organization
+(`GET …/access/findings`, trimmed):
+
+```json
+[
+  { "rule": "OUTSIDE_COLLABORATOR_CAN_WRITE", "severity": "MEDIUM", "login": "olga", "repository": "api",
+    "permission": "WRITE", "why": "Outside collaborator with WRITE access" },
+  { "rule": "ADMIN_ON_ARCHIVED_REPOSITORY", "severity": "LOW", "login": "bob", "repository": "legacy",
+    "permission": "ADMIN", "why": "Admin on an archived repository (admins can unarchive it)" }
+]
+```
+
+The rules:
+- Outside collaborators with WRITE or higher (HIGH if ADMIN).
+- Non-owner admins on archived repositories.
+- Non-owner admins on repositories with no push for `dormantDays` (default 180).
+
+Owners are left out because they are admin everywhere by definition.
+
+**Large organizations:** `POST /api/v1/reports {"organization": "acme"}` returns
+`202 Accepted` with a `Location` to poll. The job has a 10-minute deadline. When it has succeeded,
+the endpoints above serve its result from cache.
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-  C[Client] -->|"GET /api/v1/orgs/{org}/access/…"| API
+  C[Client] -->|"GET /api/v1/orgs/{org}/access/…<br/>POST /api/v1/reports"| API
   subgraph Service ["Spring Boot 4 · Java 25 · Tomcat on virtual threads"]
-    API["ReportController<br/>validation · allowlist · RFC 9457 errors"] --> RS[AccessReportService]
+    API["Report + job controllers<br/>validation · allowlist · RFC 9457 errors"] --> RS[AccessReportService]
+    API --> JOBS["ReportJobs<br/>async deadline → publishes to cache"] --> RS
     RS -->|"@Cacheable(sync=true)"| CACHE[("Caffeine<br/>TTL · size bound")]
-    RS --> VIEWS["ReportViews<br/>by user / by repo · filters · paging"]
+    RS --> VIEWS["Views<br/>by user / by repo · findings · CSV · paging"]
     RS --> PORT{{OrgAccessSource port}}
     PORT --> REST["RestOrgAccessSource<br/>virtual-thread fan-out · deadline · cancel"]
     REST --> HTTP["GitHubHttp<br/>shared concurrency limit · retries · Link pagination"]
-    HTTP --> RL["GitHubErrorClassifier · RateLimitTracker<br/>x-ratelimit-* · Retry-After"]
+    HTTP --> RL["GitHubErrorClassifier · RateLimitTracker<br/>x-ratelimit-* · Retry-After · ETag"]
   end
   RL --> GH[("api.github.com")]
 ```
@@ -103,6 +130,8 @@ flowchart LR
 | Classify every GitHub 403 before treating it as "no permission" | Secondary rate limits are also 403s; the first version treated every 403 as "no access", which silently drops repositories under throttling and caches the result | [0002](docs/adr/0002-rate-limits-and-partial-results.md) |
 | `coverage.complete` + `skippedRepositories` | An access report that looks complete but isn't is worse than an error | [0002](docs/adr/0002-rate-limits-and-partial-results.md) |
 | Caffeine with TTL and `sync=true`, not Redis | One instance, cheap-to-rebuild data; stampede-safe; GitHub load bounded by TTL, not traffic | [0003](docs/adr/0003-caffeine-cache.md) |
+| ETag revalidation on every GitHub call | Rebuilding an unchanged report after the TTL is 304s, which GitHub doesn't count against the primary rate limit | [0003](docs/adr/0003-caffeine-cache.md) |
+| Async job instead of a longer synchronous timeout | Large organizations shouldn't hold an HTTP connection for minutes; the job publishes into the same cache | [0001](docs/adr/0001-virtual-threads-over-webflux.md) |
 | REST + fine-grained token; GraphQL and GitHub App later | Port defined per use case so a batching adapter can drop in; both need a real org to validate | [0004](docs/adr/0004-rest-and-pat-now-graphql-and-github-app-later.md) |
 
 ## Failure behaviour
@@ -116,7 +145,7 @@ flowchart LR
 | Quota lower than the report needs | `429 rate-limit-budget`, refused *before* spending it |
 | 403/404 on one repository | listed in `coverage.skippedRepositories`; report marked incomplete |
 | 401 (bad service token) | `502 upstream-auth-failed`, never our caller's 401 |
-| Report slower than 45 s | `504 report-timeout`; outstanding calls cancelled |
+| Report slower than 45 s | `504 report-timeout`; outstanding calls cancelled; use `POST /api/v1/reports` |
 
 Every error is an RFC 9457 problem with a stable `code` and a `traceId` that matches the
 `X-Trace-Id` header and the server logs. See [docs/errors.md](docs/errors.md).
@@ -134,10 +163,12 @@ Every number below says how it was measured.
 | GitHub load from the public demo | ≤ 6 reports/hour | 1 allow-listed org × 10-min TTL × `sync=true`, regardless of traffic |
 | Docker image | 137 MB compressed (559 MB unpacked); application layer 0.5 MB | `docker save \| gzip \| wc -c`, `docker history` |
 | Startup in container | ~2 s | `Started … in 2.015 seconds` in the container logs |
-| Test suite | 121 tests, `./mvnw verify` ≈ 31 s | Apple M5, warm Maven cache |
+| Rebuild of an unchanged org after TTL | every GitHub call is a 304 (no primary quota) | `ConditionalRequestsIT`: 5 of 5 requests answered 304, identical report |
+| Test suite | 128 tests (105 unit, 23 integration), `./mvnw clean verify` ≈ 42 s | Apple M5, warm Maven cache |
 
 **Primary rate limit:** a token allows 5,000 requests per hour, so at most **4 cold reports per hour
-for a 1,000-repository organization**. Caching keeps repeat queries free.
+for a 1,000-repository organization**. Caching keeps repeat queries free, and ETag revalidation
+keeps rebuilds of unchanged data nearly free.
 
 ## Security
 
@@ -169,6 +200,7 @@ for a 1,000-repository organization**. Caching keeps repeat queries free.
   - `github_ratelimit_remaining`
   - `github_retries_total`
   - `github_ratelimit_hits_total{type}`
+  - `github_conditional_requests_total{result}`
   - `access_report_generation_seconds{outcome,complete}`
   - `cache_gets_total{result}`
   - `http_client_requests_seconds`, tagged by URI *template*, so cardinality stays bounded
@@ -189,6 +221,8 @@ for a 1,000-repository organization**. Caching keeps repeat queries free.
   - the budget check
   - cache stampede and TTL
   - a synthetic 1,200-repository organization
+  - async jobs (a sync 504 that succeeds as a job)
+  - ETag revalidation
   - actuator endpoints
   - log safety
 - **Contract test:** parses a real recorded GitHub response (`src/test/resources/github-fixtures/recorded`).
@@ -196,7 +230,7 @@ for a 1,000-repository organization**. Caching keeps repeat queries free.
   - No token is given to the build.
   - The test profile can only target `127.0.0.1`, and a guard test enforces that.
 - **Gates in `./mvnw verify`:**
-  - ≥ 80% line coverage on the `github` and `report` packages (currently 92.3% overall)
+  - ≥ 80% line coverage on the `github` and `report` packages (currently 93.5% overall)
   - palantir-java-format via Spotless
   - `javac -Xlint:all -Werror`
 
@@ -206,9 +240,12 @@ for a 1,000-repository organization**. Caching keeps repeat queries free.
   cheaply. GraphQL `permissionSources` can (ADR-0004).
 - **Dormancy here means the repository's `pushed_at`, not user activity.** User activity needs
   the Enterprise audit log.
-- **Single instance:** the cache is in-process and lost on restart.
+- **Single instance:** the report cache, ETag cache and jobs are in-process and lost on restart.
 - **Very large organizations:** extrapolating the benchmark, organizations past roughly
-  1,600–2,100 repositories at 150–200 ms per GitHub call can hit the 45 s synchronous deadline.
+  1,600–2,100 repositories at 150–200 ms per GitHub call exceed the 45 s synchronous deadline.
+  Those need the async job.
+- **The budget check is conservative:** it assumes every call costs quota, so it can refuse a
+  rebuild that ETag revalidation would have made almost free.
 - **Auth is a personal token:** a GitHub App would give per-installation limits and short-lived
   tokens (ADR-0004).
 
@@ -221,7 +258,8 @@ for a 1,000-repository organization**. Caching keeps repeat queries free.
 | `github.connect-timeout` / `read-timeout` | 5 s / 15 s | per call |
 | `github.max-retries` | 2 | transient failures |
 | `github.max-retry-after` | 10 s | longest secondary-limit pause waited inside a request |
-| `report.sync-deadline` | 45 s | whole-report deadline |
+| `report.sync-deadline` | 45 s | whole-report deadline for synchronous requests |
+| `report.async-deadline` | 10 min | deadline for `POST /api/v1/reports` jobs |
 | `report.cache-ttl` / `cache-max-size` | 10 min / 100 | cache freshness and bound |
 | `report.allowed-orgs` (`REPORT_ALLOWED_ORGS`) | empty (any) | allowlist |
 | `report.api-key` (`REPORT_API_KEY`) | empty (off) | require `X-API-Key` on `/api/**` |
@@ -229,8 +267,8 @@ for a 1,000-repository organization**. Caching keeps repeat queries free.
 ## Project layout
 
 ```
-api/      HTTP layer: controller, RFC 9457 problems, API key and trace-id filters
-report/   use case: service + cache, OrgAccessSource port, domain records, views
+api/      HTTP layer: report + job controllers, RFC 9457 problems, API key and trace-id filters
+report/   use case: service + cache, async jobs, OrgAccessSource port, domain records, views, findings, CSV
 github/   GitHub adapter: REST client, transport (limits/retries/pagination), error classifier
 config/   typed, validated configuration
 ```

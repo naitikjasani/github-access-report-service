@@ -36,6 +36,14 @@ Freshness is visible to callers: every response carries `generatedAt` and `ageSe
 organization, at most 6 reports per hour are built, whatever the request rate. This is what makes
 the public demo safe.
 
+**Below the report cache: conditional requests.** `GitHubHttp` also remembers each URL's `ETag`
+and body, and revalidates with `If-None-Match`. When the report cache expires, rebuilding an
+unchanged organization costs 304s, which GitHub doesn't count against the primary rate limit for
+authorized requests. `ConditionalRequestsIT` shows 5 of 5 rebuild requests answered 304, with an
+identical report. The two caches answer different questions:
+- The report cache decides how stale an answer may be.
+- The ETag cache makes refreshing it cheap.
+
 **Given up:**
 - The cache is per instance and lost on restart.
 
