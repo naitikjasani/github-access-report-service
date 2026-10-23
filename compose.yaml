@@ -1,0 +1,17 @@
+# One-command local run: cp .env.example .env, set GITHUB_TOKEN, then `docker compose up --build`.
+services:
+  app:
+    build: .
+    image: github-access-report:local
+    ports:
+      - "8080:8080"
+    env_file: .env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
