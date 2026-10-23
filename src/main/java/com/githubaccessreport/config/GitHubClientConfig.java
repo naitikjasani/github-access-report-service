@@ -19,7 +19,7 @@ public class GitHubClientConfig {
      * interrupted.
      */
     @Bean
-    public RestClient gitHubRestClient(RestClient.Builder builder, GitHubProperties properties) {
+    public RestClient gitHubApiRestClient(RestClient.Builder builder, GitHubProperties properties) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(properties.connectTimeout())
                 .followRedirects(HttpClient.Redirect.NORMAL)

@@ -1,0 +1,9 @@
+# Tests never talk to api.github.com: integration tests override base-url with a WireMock server.
+github:
+  base-url: http://127.0.0.1:1
+  token: test-token-never-real
+  read-timeout: 2s
+  max-retry-after: 2s
+
+report:
+  sync-deadline: 5s

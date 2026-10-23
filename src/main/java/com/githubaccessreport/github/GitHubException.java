@@ -84,10 +84,14 @@ public abstract sealed class GitHubException extends RuntimeException
         }
     }
 
-    /** Any other non-2xx response; not retried. */
+    /** Any other non-2xx response, or a body we cannot parse; not retried. */
     public static final class UnexpectedResponse extends GitHubException {
         public UnexpectedResponse(int status) {
             super("Unexpected GitHub response (HTTP " + status + ")", status, null);
+        }
+
+        public UnexpectedResponse(String message, int status, Throwable cause) {
+            super(message, status, cause);
         }
     }
 }

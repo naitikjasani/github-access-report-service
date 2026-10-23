@@ -1,6 +1,14 @@
 server:
   port: ${PORT:8080}
 
+spring:
+  application:
+    name: github-access-report
+  threads:
+    # Tomcat request handling and our GitHub fan-out both run on virtual threads.
+    virtual:
+      enabled: true
+
 github:
   base-url: https://api.github.com
   # Required. A fine-grained, read-only token scoped to the organization(s) you report on.

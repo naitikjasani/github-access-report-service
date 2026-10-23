@@ -179,6 +179,23 @@ class GitHubHttpTest {
                 .isInstanceOf(GitHubException.NotFound.class);
     }
 
+    @Test
+    void toleratesMissingOptionalFields() {
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).willReturn(okJson("[{\"id\": 7, \"name\": \"minimal\"}]")));
+
+        assertThat(http.getAllPages(REPOS_PATH, REPOS)).singleElement()
+                .satisfies(repo -> assertThat(repo.archivedRepository()).isFalse());
+    }
+
+    @Test
+    void unreadableBodyIsAnUnexpectedResponseNotRetried() {
+        github.stubFor(get(urlPathEqualTo(REPOS_PATH)).willReturn(okJson("{\"not\": \"an array\"")));
+
+        assertThatThrownBy(() -> http.getAllPages(REPOS_PATH, REPOS))
+                .isInstanceOf(GitHubException.UnexpectedResponse.class);
+        github.verify(1, getRequestedFor(urlPathEqualTo(REPOS_PATH)));
+    }
+
     static String repos(int firstId, int count) {
         return IntStream.range(firstId, firstId + count)
                 .mapToObj(i -> """

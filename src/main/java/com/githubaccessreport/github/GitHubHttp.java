@@ -15,6 +15,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.retry.RetryException;
 import org.springframework.core.retry.RetryListener;
@@ -24,6 +25,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 /**
  * Transport for GitHub REST calls: one place for concurrency limits, retries, rate-limit handling
@@ -57,14 +59,15 @@ public class GitHubHttp {
     private final RetryTemplate retryTemplate;
     private final Duration maxRetryAfter;
 
-    public GitHubHttp(RestClient gitHubRestClient, GitHubProperties properties, RateLimitTracker rateLimitTracker,
+    @Autowired
+    public GitHubHttp(RestClient gitHubApiRestClient, GitHubProperties properties, RateLimitTracker rateLimitTracker,
             Clock clock) {
-        this(gitHubRestClient, properties, rateLimitTracker, clock, new RetryListener() {});
+        this(gitHubApiRestClient, properties, rateLimitTracker, clock, new RetryListener() {});
     }
 
-    GitHubHttp(RestClient gitHubRestClient, GitHubProperties properties, RateLimitTracker rateLimitTracker,
+    GitHubHttp(RestClient gitHubApiRestClient, GitHubProperties properties, RateLimitTracker rateLimitTracker,
             Clock clock, RetryListener retryListener) {
-        this.restClient = gitHubRestClient;
+        this.restClient = gitHubApiRestClient;
         this.rateLimitTracker = rateLimitTracker;
         this.clock = clock;
         this.permits = new Semaphore(properties.maxConcurrency(), true);
@@ -160,6 +163,9 @@ public class GitHubHttp {
                 throw new CancellationException("GitHub call cancelled: " + uriTemplate);
             }
             throw new GitHubException.Unavailable("Could not reach GitHub: " + e.getMessage(), 0, e);
+        } catch (RestClientException e) {
+            // 2xx with a body we cannot read (schema drift, truncated payload): not worth retrying.
+            throw new GitHubException.UnexpectedResponse("Unreadable GitHub response for " + uriTemplate, 200, e);
         } finally {
             permits.release();
         }

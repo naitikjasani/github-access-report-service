@@ -20,7 +20,7 @@ final class GitHubTestSupport {
     }
 
     static GitHubHttp http(GitHubProperties properties, RateLimitTracker tracker) {
-        RestClient restClient = new GitHubClientConfig().gitHubRestClient(RestClient.builder(), properties);
+        RestClient restClient = new GitHubClientConfig().gitHubApiRestClient(RestClient.builder(), properties);
         return new GitHubHttp(restClient, properties, tracker, Clock.systemUTC());
     }
 }
