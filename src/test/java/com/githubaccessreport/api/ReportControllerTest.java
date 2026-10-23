@@ -114,6 +114,40 @@ class ReportControllerTest {
     }
 
     @Test
+    void grantsCsvIsAnAttachmentWithOneRowPerGrant() throws Exception {
+        when(reports.getReport("acme")).thenReturn(ReportFixtures.report());
+
+        mvc.perform(get("/api/v1/orgs/acme/access/grants.csv").param("minPermission", "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"acme-access.csv\""))
+                .andExpect(content().string(org.hamcrest.Matchers.startsWith("login,user_id,affiliation,")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("bob,201,MEMBER,legacy,ADMIN")));
+    }
+
+    @Test
+    void csvErrorsAreStillProblemDetails() throws Exception {
+        when(reports.getReport("missing")).thenThrow(new OrganizationNotFoundException("missing"));
+
+        mvc.perform(get("/api/v1/orgs/missing/access/grants.csv").accept("text/csv"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("organization-not-found"));
+    }
+
+    @Test
+    void findingsAreMostSevereFirst() throws Exception {
+        when(reports.getReport("acme")).thenReturn(ReportFixtures.report());
+
+        mvc.perform(get("/api/v1/orgs/acme/access/findings"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].rule").value("OUTSIDE_COLLABORATOR_CAN_WRITE"))
+                .andExpect(jsonPath("$.items[0].login").value("olga"))
+                .andExpect(jsonPath("$.items[0].why").value("Outside collaborator with WRITE access"))
+                .andExpect(jsonPath("$.page.totalElements").value(2));
+    }
+
+    @Test
     void invalidPageSizeIsAProblem400() throws Exception {
         mvc.perform(get("/api/v1/orgs/acme/access/users").param("size", "1000"))
                 .andExpect(status().isBadRequest())

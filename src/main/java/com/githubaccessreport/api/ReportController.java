@@ -6,6 +6,9 @@ import com.githubaccessreport.report.domain.AccessReport;
 import com.githubaccessreport.report.domain.Affiliation;
 import com.githubaccessreport.report.domain.Permission;
 import com.githubaccessreport.report.view.AccessFilter;
+import com.githubaccessreport.report.view.AccessFindings;
+import com.githubaccessreport.report.view.Finding;
+import com.githubaccessreport.report.view.GrantsCsv;
 import com.githubaccessreport.report.view.PageResult;
 import com.githubaccessreport.report.view.ReportViews;
 import com.githubaccessreport.report.view.RepositoryAccess;
@@ -19,11 +22,16 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -135,6 +143,58 @@ public class ReportController {
         AccessReport report = reports.getReport(resolve(organization));
         var filter = new AccessFilter(minPermission, affiliation, includeArchived, includeForks);
         return toPage(report, ReportViews.byRepository(report, filter), page, size);
+    }
+
+    @Operation(
+            summary = "Export grants as CSV",
+            description = "One row per (user, repository) grant matching the filters, for spreadsheets. Not paged.")
+    @ApiResponse(responseCode = "200", description = "CSV (RFC 4180), formula-like cells neutralized")
+    @GetMapping(value = "/grants.csv", produces = "text/csv")
+    public ResponseEntity<String> grantsCsv(
+            @Parameter(description = "GitHub organization login", example = "my-org")
+                    @PathVariable
+                    @Pattern(regexp = ORGANIZATION_LOGIN, message = ORGANIZATION_LOGIN_MESSAGE)
+                    String organization,
+            @RequestParam(required = false) Permission minPermission,
+            @RequestParam(required = false) Affiliation affiliation,
+            @RequestParam(defaultValue = "true") boolean includeArchived,
+            @RequestParam(defaultValue = "true") boolean includeForks) {
+
+        AccessReport report = reports.getReport(resolve(organization));
+        var filter = new AccessFilter(minPermission, affiliation, includeArchived, includeForks);
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(report.organization() + "-access.csv")
+                                .build()
+                                .toString())
+                .body(GrantsCsv.write(report, filter));
+    }
+
+    @Operation(
+            summary = "Access worth reviewing",
+            description = "Outside collaborators who can write; non-owner admins on archived or dormant "
+                    + "repositories (no push for dormantDays). Most severe first.")
+    @ApiResponse(responseCode = "200", description = "Findings page (possibly served from cache)")
+    @GetMapping("/findings")
+    public ReportPage<Finding> findings(
+            @Parameter(description = "GitHub organization login", example = "my-org")
+                    @PathVariable
+                    @Pattern(regexp = ORGANIZATION_LOGIN, message = ORGANIZATION_LOGIN_MESSAGE)
+                    String organization,
+            @Parameter(description = "A repository is dormant after this many days without a push")
+                    @RequestParam(defaultValue = "180")
+                    @Min(1)
+                    @Max(3650)
+                    int dormantDays,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(MAX_PAGE_SIZE) int size) {
+
+        AccessReport report = reports.getReport(resolve(organization));
+        return toPage(
+                report, AccessFindings.evaluate(report, clock.instant(), Duration.ofDays(dormantDays)), page, size);
     }
 
     /**
