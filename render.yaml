@@ -1,0 +1,18 @@
+# Render blueprint: free web service built from the Dockerfile. See docs/deploy.md.
+services:
+  - type: web
+    name: github-access-report
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health/readiness
+    # Deploy only commits whose GitHub checks (CI, CodeQL) passed.
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Secrets are entered in the Render dashboard, never committed.
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: REPORT_ALLOWED_ORGS
+        sync: false
